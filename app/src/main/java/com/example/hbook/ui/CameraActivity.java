@@ -296,12 +296,24 @@ public class CameraActivity extends AppCompatActivity {
                                     fullText.append(pageData.extracted_text).append("\n\n");
 
                                     Page newPage = new Page((int) generatedBookId, i+1, pageData.extracted_text);
+
+                                    if (pageData.sentiment != null) {
+                                        newPage.emotionValence = pageData.sentiment.valence;
+                                        newPage.emotionArousal = pageData.sentiment.arousal;
+                                    }
+
                                     db.libraryDao().insertPage(newPage);
                                 }
                             }
                         } else if (ocrData.extracted_text != null) {
                             fullText.append(ocrData.extracted_text);
                             Page newPage = new Page((int) generatedBookId, 1, ocrData.extracted_text);
+
+                            if (ocrData.sentiment != null) {
+                                newPage.emotionValence = ocrData.sentiment.valence;
+                                newPage.emotionArousal = ocrData.sentiment.arousal;
+                            }
+
                             db.libraryDao().insertPage(newPage);
                         }
 
