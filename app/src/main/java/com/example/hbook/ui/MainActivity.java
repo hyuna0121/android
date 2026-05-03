@@ -2,6 +2,7 @@ package com.example.hbook.ui;
 
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.View;
@@ -28,6 +29,8 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -38,10 +41,22 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout layoutDeleteMode;
     private TextView tvDeleteCount;
     private FloatingActionButton fabAdd;
+    private int currentUserId = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        currentUserId = prefs.getInt("logged_in_user_id", -1);
+
+        if (currentUserId == -1) {
+            Intent intent = new Intent(this, LoginActivity.class);
+            startActivity(intent);
+            finish();
+            return;
+        }
+
         setContentView(R.layout.activity_main);
 
         rvLibrary = findViewById(R.id.rv_library);
@@ -59,20 +74,24 @@ public class MainActivity extends AppCompatActivity {
         tvEdit.setOnClickListener(v -> showEditMenu(v));
         tvCancelDelete.setOnClickListener(v -> exitDeleteMode());
         tvConfirmDelete.setOnClickListener(v -> executeDelete());
+
+        ImageView ivProfile = findViewById(R.id.iv_profile);
+        ivProfile.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, ProfileActivity.class);
+            startActivity(intent);
+        });
+
+        FloatingActionButton fabAdd = findViewById(R.id.fab_add);
+        fabAdd.setOnClickListener(v -> showNameInputDialog());
+        refreshBookList("LATEST");
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-
-        AppDatabase db = AppDatabase.getInstance(this);
-
-        List<Book> savedBooks = db.libraryDao().getAllBooks();
-
-        adapter = new BookAdapter(savedBooks, count -> {
-            tvDeleteCount.setText(count + "개 선택");
-        });
-        rvLibrary.setAdapter(adapter);
+        if (currentUserId != -1) {
+            refreshBookList("LATEST");
+        }
     }
 
     private void showNameInputDialog() {
@@ -102,6 +121,7 @@ public class MainActivity extends AppCompatActivity {
 
                 Intent intent = new Intent(MainActivity.this, CameraActivity.class);
                 intent.putExtra("BOOK_NAME", bookName);
+                intent.putExtra("USER_ID", currentUserId);
                 startActivity(intent);
             }
         });
@@ -174,30 +194,39 @@ public class MainActivity extends AppCompatActivity {
         }
 
         AppDatabase db = AppDatabase.getInstance(this);
-
-        for (Book book : adapter.getSelectedBooks()) {
-            db.libraryDao().deleteBook(book);
-        }
-
-        Toast.makeText(this, "선택한 책이 삭제되었습니다.", Toast.LENGTH_SHORT).show();
-
-        refreshBookList("LATEST");
-        exitDeleteMode();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.execute(() -> {
+            for (Book book : adapter.getSelectedBooks()) {
+                db.libraryDao().deleteBook(book);
+            }
+            runOnUiThread(() -> {
+                Toast.makeText(this, "선택한 책이 삭제되었습니다.", Toast.LENGTH_SHORT).show();
+                refreshBookList("LATEST");
+                exitDeleteMode();
+            });
+        });
     }
 
     private void refreshBookList(String sortType) {
-        AppDatabase db = AppDatabase.getInstance(this);
-        List<Book> books;
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.execute(() -> {
+            AppDatabase db = AppDatabase.getInstance(getApplicationContext());
+            List<Book> books;
 
-        if (sortType.equals("NAME")) {
-            books = db.libraryDao().getAllBooksSortedByName();
-        } else {
-            books = db.libraryDao().getAllBooksSortedByDate();
-        }
+            if (sortType.equals("NAME")) {
+                books = db.libraryDao().getAllBooksSortedByName(currentUserId);
+            } else {
+                books = db.libraryDao().getAllBooksSortedByDate(currentUserId);
+            }
 
-        adapter = new BookAdapter(books, count -> {
-            tvDeleteCount.setText(count + "개 선택");
+            runOnUiThread(() -> {
+                adapter = new BookAdapter(books, count -> {
+                    if (tvDeleteCount != null) {
+                        tvDeleteCount.setText(count + "개 선택");
+                    }
+                });
+                rvLibrary.setAdapter(adapter);
+            });
         });
-        rvLibrary.setAdapter(adapter);
     }
 }

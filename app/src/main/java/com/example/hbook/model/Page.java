@@ -6,10 +6,12 @@ import androidx.room.ForeignKey;
 import androidx.room.PrimaryKey;
 
 @Entity(tableName = "pages",
-        foreignKeys = @ForeignKey(entity = Book.class,
-                                  parentColumns = "book_id",
-                                  childColumns = "book_id",
-                                  onDelete = ForeignKey.CASCADE))
+        foreignKeys = @ForeignKey(
+                entity = Book.class,
+                parentColumns = "book_id",
+                childColumns = "book_id",
+                onDelete = ForeignKey.CASCADE
+        ))
 public class Page {
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo(name = "page_id")

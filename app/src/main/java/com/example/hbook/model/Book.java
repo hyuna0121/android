@@ -11,6 +11,9 @@ public class Book {
     @ColumnInfo(name = "book_id")
     public int id;
 
+    @ColumnInfo(name = "user_id")
+    public int userId;
+
     @NonNull
     public String title;
 
@@ -23,8 +26,9 @@ public class Book {
     @ColumnInfo(name = "created_at")
     public long createdAt;
 
-    public Book(String title) {
+    public Book(String title, int userId) {
         this.title = title;
+        this.userId = userId;
         this.isFavorite = false;
         this.lastReadPage = 1;
         this.createdAt = System.currentTimeMillis();

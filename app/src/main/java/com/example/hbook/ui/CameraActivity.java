@@ -3,6 +3,7 @@ package com.example.hbook.ui;
 import android.Manifest;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
@@ -68,6 +69,7 @@ public class CameraActivity extends AppCompatActivity {
     private String bookName;  // 이전 화면에서 넘겨받은 책 이름
     private List<File> capturedFiles = new ArrayList<>();  // 찍은 사진들 모아둘 리스트
     private TextView btnSendMultiple;
+    private int currentUserId = -1;
 
     // 갤러리에서 사진을 골랐을 때 결과 받아옴
     private final ActivityResultLauncher<String> galleryLauncher =
@@ -97,6 +99,10 @@ public class CameraActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        currentUserId = prefs.getInt("logged_in_user_id", -1);
+
         setContentView(R.layout.activity_camera);
 
         // 이전 화면에서 넘겨준 책 이름 있는지 확인
@@ -281,56 +287,61 @@ public class CameraActivity extends AppCompatActivity {
                     OcrResponse ocrData = response.body();
 
                     if ("success".equals(ocrData.status)) {
-                        AppDatabase db = AppDatabase.getInstance(CameraActivity.this);
+                        ExecutorService executor = Executors.newSingleThreadExecutor();
+                        executor.execute(() -> {
+                            AppDatabase db = AppDatabase.getInstance(CameraActivity.this);
 
-                        String bookTitle = (bookName != null) ? bookName : "무제";
-                        Book newBook = new Book(bookTitle);
-                        long generatedBookId = db.libraryDao().insertBook(newBook);
+                            String bookTitle = (bookName != null) ? bookName : "무제";
+                            Book newBook = new Book(bookTitle, currentUserId);
+                            long generatedBookId = db.libraryDao().insertBook(newBook);
 
-                        StringBuilder fullText = new StringBuilder();
+                            StringBuilder fullText = new StringBuilder();
 
-                        if (ocrData.results != null && !ocrData.results.isEmpty()) {
-                            for (int i = 0; i < ocrData.results.size(); i++) {
-                                OcrResponse.PageResult pageData = ocrData.results.get(i);
-                                if (pageData.extracted_text != null) {
-                                    fullText.append(pageData.extracted_text).append("\n\n");
+                            if (ocrData.results != null && !ocrData.results.isEmpty()) {
+                                for (int i = 0; i < ocrData.results.size(); i++) {
+                                    OcrResponse.PageResult pageData = ocrData.results.get(i);
+                                    if (pageData.extracted_text != null) {
+                                        fullText.append(pageData.extracted_text).append("\n\n");
 
-                                    Page newPage = new Page((int) generatedBookId, i+1, pageData.extracted_text);
+                                        Page newPage = new Page((int) generatedBookId, i+1, pageData.extracted_text);
 
-                                    if (pageData.sentiment != null) {
-                                        newPage.emotionValence = pageData.sentiment.valence;
-                                        newPage.emotionArousal = pageData.sentiment.arousal;
+                                        if (pageData.sentiment != null) {
+                                            newPage.emotionValence = pageData.sentiment.valence;
+                                            newPage.emotionArousal = pageData.sentiment.arousal;
+                                        }
+
+                                        db.libraryDao().insertPage(newPage);
                                     }
-
-                                    db.libraryDao().insertPage(newPage);
                                 }
+                            } else if (ocrData.extracted_text != null) {
+                                fullText.append(ocrData.extracted_text);
+                                Page newPage = new Page((int) generatedBookId, 1, ocrData.extracted_text);
+
+                                if (ocrData.sentiment != null) {
+                                    newPage.emotionValence = ocrData.sentiment.valence;
+                                    newPage.emotionArousal = ocrData.sentiment.arousal;
+                                }
+
+                                db.libraryDao().insertPage(newPage);
                             }
-                        } else if (ocrData.extracted_text != null) {
-                            fullText.append(ocrData.extracted_text);
-                            Page newPage = new Page((int) generatedBookId, 1, ocrData.extracted_text);
 
-                            if (ocrData.sentiment != null) {
-                                newPage.emotionValence = ocrData.sentiment.valence;
-                                newPage.emotionArousal = ocrData.sentiment.arousal;
-                            }
+                            runOnUiThread(() -> {
+                                Toast.makeText(CameraActivity.this, "변환 완료", Toast.LENGTH_SHORT).show();
 
-                            db.libraryDao().insertPage(newPage);
-                        }
+                                // 1. 텍스트뷰로 이동하기 위한 인텐트 생성
+                                Intent intent = new Intent(CameraActivity.this, ViewerActivity.class);
 
-                        Toast.makeText(CameraActivity.this, "변환 완료", Toast.LENGTH_SHORT).show();
+                                // 2. 책 번호와 제목을 함께 보내기
+                                intent.putExtra("BOOK_ID", (int) generatedBookId);
+                                if (bookName != null) {
+                                    intent.putExtra("BOOK_NAME", bookName);
+                                }
 
-                        // 1. 텍스트뷰로 이동하기 위한 인텐트 생성
-                        Intent intent = new Intent(CameraActivity.this, ViewerActivity.class);
-
-                        // 2. 책 번호와 제목을 함께 보내기
-                        intent.putExtra("BOOK_ID", (int) generatedBookId);
-                        if (bookName != null) {
-                            intent.putExtra("BOOK_NAME", bookName);
-                        }
-
-                        // 3. 텍스트뷰로 이동
-                        startActivity(intent);
-                        finish();
+                                // 3. 텍스트뷰로 이동
+                                startActivity(intent);
+                                finish();
+                            });
+                        });
                     } else {
                         Toast.makeText(CameraActivity.this, "서버 응답 오류", Toast.LENGTH_SHORT).show();
                     }

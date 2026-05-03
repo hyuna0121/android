@@ -9,10 +9,13 @@ import androidx.room.RoomDatabase;
 import com.example.hbook.model.Book;
 import com.example.hbook.model.Page;
 import com.example.hbook.model.ReaderLog;
+import com.example.hbook.model.User;
+import com.example.hbook.model.UserSetting;
 
-@Database(entities = {Book.class, Page.class, ReaderLog.class}, version = 2)
+@Database(entities = {Book.class, Page.class, ReaderLog.class, User.class, UserSetting.class}, version = 4)
 public abstract class AppDatabase extends RoomDatabase {
     public abstract LibraryDao libraryDao();
+    public abstract UserDao userDao();
 
     private static AppDatabase INSTANCE;
 

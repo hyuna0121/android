@@ -133,7 +133,7 @@
         app:layout_constraintBottom_toBottomOf="@+id/bottom_nav_bg"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="@+id/bottom_nav_bg"
-        app:tint="#A0A0A0" />
+        app:tint="#007AFF" />
 
     <ImageView
         android:id="@+id/iv_profile"

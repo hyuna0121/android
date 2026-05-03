@@ -25,16 +25,16 @@ public interface LibraryDao {
     void deleteBook(Book book);
 
     // 최신순으로 책 목록 가져오기
-    @Query("SELECT * FROM books ORDER BY created_at DESC")
-    List<Book> getAllBooks();
+    @Query("SELECT * FROM books WHERE user_id = :userId ORDER BY created_at DESC")
+    List<Book> getAllBooks(int userId);
 
     // 최신순 정렬
-    @Query("SELECT * FROM books ORDER BY is_favorite DESC, created_at DESC")
-    List<Book> getAllBooksSortedByDate();
+    @Query("SELECT * FROM books WHERE user_id = :userId ORDER BY is_favorite DESC, created_at DESC")
+    List<Book> getAllBooksSortedByDate(int userId);
 
     // 이름순 정렬
-    @Query("SELECT * FROM books ORDER BY is_favorite DESC, title ASC")
-    List<Book> getAllBooksSortedByName();
+    @Query("SELECT * FROM books WHERE user_id = :userId ORDER BY is_favorite DESC, title ASC")
+    List<Book> getAllBooksSortedByName(int userId);
 
     // 페이지 하나 저장
     @Insert

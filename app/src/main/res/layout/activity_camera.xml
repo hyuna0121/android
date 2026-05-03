@@ -20,7 +20,7 @@
             android:layout_height="match_parent"
             android:layout_marginStart="16dp"
             android:gravity="center_vertical"
-            android:text="내 서재로"
+            android:text="이전으로"
             android:textColor="#4285F4"
             android:textSize="16sp"
             android:textStyle="bold"

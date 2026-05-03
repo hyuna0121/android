@@ -7,10 +7,12 @@ import androidx.room.ForeignKey;
 import androidx.room.PrimaryKey;
 
 @Entity(tableName = "reader_logs",
-        foreignKeys = @ForeignKey(entity = Book.class,
-                                  parentColumns = "book_id",
-                                  childColumns = "book_id",
-                                  onDelete = ForeignKey.CASCADE))
+        foreignKeys = @ForeignKey(
+                entity = Book.class,
+                parentColumns = "book_id",
+                childColumns = "book_id",
+                onDelete = ForeignKey.CASCADE
+        ))
 public class ReaderLog {
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo(name = "log_id")
