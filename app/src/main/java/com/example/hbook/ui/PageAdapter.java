@@ -1,5 +1,6 @@
 package com.example.hbook.ui;
 
+import android.graphics.Typeface;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.BackgroundColorSpan;
@@ -10,10 +11,12 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.hbook.R;
 import com.example.hbook.model.Page;
+import com.example.hbook.model.UserSetting;
 
 import java.util.List;
 
@@ -21,8 +24,7 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
     private List<String> pageList;
     private OnPageClickListener listener;
 
-    private float fontSize;
-    private float lineSpacing;
+    private UserSetting userSetting;
     private int fontColor;
 
     private int highlightPage = -1;
@@ -35,10 +37,9 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
         void onPageClick();
     }
 
-    public PageAdapter(List<String> pageList, float fontSize, float lineSpacing, int fontColor, OnPageClickListener listener) {
+    public PageAdapter(List<String> pageList, UserSetting userSetting, int fontColor, OnPageClickListener listener) {
         this.pageList = pageList;
-        this.fontSize = fontSize;
-        this.lineSpacing = lineSpacing;
+        this.userSetting = userSetting;
         this.fontColor = fontColor;
         this.listener = listener;
     }
@@ -54,9 +55,27 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
     public void onBindViewHolder(@NonNull PageViewHolder holder, int position) {
         String text = pageList.get(position);
 
-        holder.tvContent.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSize);
+        holder.tvContent.setTextSize(TypedValue.COMPLEX_UNIT_SP, userSetting.fontSize);
         holder.tvContent.setTextColor(fontColor);
-        holder.tvContent.setLineSpacing(0, lineSpacing);
+        holder.tvContent.setLineSpacing(0, userSetting.lineSpacing);
+        holder.tvContent.setLetterSpacing(userSetting.letterSpacing);
+
+        Typeface baseFace = Typeface.DEFAULT;
+        try {
+            if ("RIDIBATANG".equals(userSetting.fontFamily)) baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.ridibatang);
+            else if ("KOPUB_BATANG".equals(userSetting.fontFamily)) baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.kopub_batang);
+            else if ("NANUM_BARUN".equals(userSetting.fontFamily)) baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.nanum_barun_gothic);
+            else if ("NANUM_ROUND".equals(userSetting.fontFamily)) baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.nanum_square_round);
+            else if ("MARU".equals(userSetting.fontFamily)) baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.maruburi);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        if (userSetting.isBold) {
+            holder.tvContent.setTypeface(baseFace, Typeface.BOLD);
+        } else {
+            holder.tvContent.setTypeface(baseFace, Typeface.NORMAL);
+        }
 
         holder.tvContent.setOnClickListener(v -> {
             if (listener != null) listener.onPageClick();

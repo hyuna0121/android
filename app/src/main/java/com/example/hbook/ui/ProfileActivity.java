@@ -34,6 +34,12 @@ public class ProfileActivity extends AppCompatActivity {
         SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
         currentUserId = prefs.getInt("logged_in_user_id", -1);
 
+        Button btnViewerSettings = findViewById(R.id.btn_viewer_settings);
+        btnViewerSettings.setOnClickListener(v -> {
+            Intent intent = new Intent(ProfileActivity.this, ViewerSettingActivity.class);
+            startActivity(intent);
+        });
+
         Button btnLogout = findViewById(R.id.btn_logout);
         btnLogout.setOnClickListener(v -> {
             SharedPreferences.Editor editor = prefs.edit();

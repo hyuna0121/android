@@ -138,7 +138,29 @@ public class SignupActivity extends AppCompatActivity {
             long newUserId = userDao.insertUser(newUser);
 
             UserSetting defaultSetting = new UserSetting((int) newUserId);
-            userDao.insertUserSetting(defaultSetting);
+
+            if (age >= 65) {
+                // 1. 노인: 글자 크기 크게, 줄 간격 약간 넓게
+                defaultSetting.fontSize = 28f;
+                defaultSetting.lineSpacing = 1.8f;
+                defaultSetting.backgroundColor = "#FDF5E6";
+            } else if (age <= 12) {
+                // 2. 어린이: 글자 크기 약간 크게, 부드러운 배경색
+                defaultSetting.fontSize = 22f;
+                defaultSetting.lineSpacing = 1.8f;
+                defaultSetting.backgroundColor = "#FFF0F5";
+            }
+
+            if (hasDyslexia) {
+                // 난독증 환자: 글자 크기 약간 크게, 줄 간격 & 자간 & 문단 간격 넓게, 눈이 편한 배경색
+                defaultSetting.lineSpacing = Math.max(defaultSetting.lineSpacing, 2.0f);
+                defaultSetting.letterSpacing = 0.15f;
+                defaultSetting.paragraphSpacing = 2.0f;
+                defaultSetting.backgroundColor = "#FDF5E6";
+                defaultSetting.fontFamily = "SANS_SERIF";
+            }
+
+                userDao.insertUserSetting(defaultSetting);
 
             runOnUiThread(() -> {
                 Toast.makeText(SignupActivity.this, "가입 완료!", Toast.LENGTH_SHORT).show();

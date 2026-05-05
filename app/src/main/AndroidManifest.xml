@@ -17,6 +17,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Hbook">
         <activity
+            android:name=".ui.ViewerSettingActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.ProfileActivity"
             android:exported="false" />
         <activity

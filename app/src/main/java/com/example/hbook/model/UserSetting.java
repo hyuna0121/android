@@ -32,6 +32,15 @@ public class UserSetting {
     @ColumnInfo(name = "background_color")
     public String backgroundColor = "#F5F5F5";
 
+    @ColumnInfo(name = "letter_spacing")
+    public float letterSpacing = 0.05f;
+
+    @ColumnInfo(name = "paragraph_spacing")
+    public float paragraphSpacing = 1.0f;
+
+    @ColumnInfo(name = "is_bold")
+    public boolean isBold;
+
     public UserSetting(int userId) {
         this.userId = userId;
     }

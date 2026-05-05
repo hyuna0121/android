@@ -1,5 +1,8 @@
 package com.example.hbook.ui;
 
+import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -16,17 +19,22 @@ import android.widget.TextView;
 
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.example.hbook.R;
 import com.example.hbook.data.AppDatabase;
 import com.example.hbook.data.LibraryDao;
 import com.example.hbook.model.Page;
+import com.example.hbook.model.UserSetting;
 import com.example.hbook.util.EmotionTtsHelper;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.regex.Pattern;
 
 public class ViewerActivity extends AppCompatActivity {
 
@@ -72,6 +80,9 @@ public class ViewerActivity extends AppCompatActivity {
     private String fullText = "";
 
     private final Handler mainHandelr = new Handler(Looper.getMainLooper());
+    private UserSetting currentUserSetting;
+    private int UserFontColor = 0xFF000000;
+    private int currentUserId = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,7 +91,28 @@ public class ViewerActivity extends AppCompatActivity {
 
         libraryDao = AppDatabase.getInstance(this).libraryDao();
 
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        currentUserId = prefs.getInt("logged_in_user_id", -1);
+
+        currentUserSetting = AppDatabase.getInstance(this).userDao().getUserSetting(currentUserId);
+
+        if (currentUserSetting == null) {
+            currentUserSetting = new UserSetting(currentUserId);
+        }
+
         viewPager  = findViewById(R.id.view_pager);
+        viewPager.setBackgroundColor(Color.parseColor(currentUserSetting.backgroundColor));
+
+        switch (currentUserSetting.backgroundColor) {
+            case "#F5F5F5": userFontColor = Color.parseColor("#333333"); break;
+            case "#E0E0E0": userFontColor = Color.parseColor("#000000"); break;
+            case "#424242": userFontColor = Color.parseColor("#E0E0E0"); break;
+            case "#000000": userFontColor = Color.parseColor("#FFFFFF"); break;
+            case "#F6F1E5": userFontColor = Color.parseColor("#4E3726"); break;
+            case "#233E3B": userFontColor = Color.parseColor("#BDD9B9"); break;
+            default: userFontColor = Color.BLACK; break;
+        }
+
         topBar     = findViewById(R.id.top_bar);
         bottomBar  = findViewById(R.id.bottom_bar);
         btnTtsPlay = findViewById(R.id.btn_tts_play);
@@ -129,7 +161,7 @@ public class ViewerActivity extends AppCompatActivity {
                     @Override
                     public void onGlobalLayout() {
                         viewPager.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                        paginateTextAndSetAdapter(fullText, userFontSize, userLineSpacing, userFontColor);
+                        paginateTextAndSetAdapter(fullText, userFontColor);
                     }
                 });
 
@@ -202,7 +234,6 @@ public class ViewerActivity extends AppCompatActivity {
         });
         // ────────────────────────────────────────────────────────────────────
     }
-
     private void buildWordTokens(String text) {
         wordTokens.clear();
         int i = 0;
@@ -282,13 +313,32 @@ public class ViewerActivity extends AppCompatActivity {
         }
     }
 
-    private void paginateTextAndSetAdapter(String fullText, float fontSize,
-                                           float lineSpacing, int fontColor) {
+    private void paginateTextAndSetAdapter(String fullText, int fontColor) {
         TextPaint paint = new TextPaint();
+
         paint.setTextSize(TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_SP, fontSize, getResources().getDisplayMetrics()));
+                TypedValue.COMPLEX_UNIT_SP, currentUserSetting.fontSize, getResources().getDisplayMetrics()));
         paint.setColor(fontColor);
         paint.setAntiAlias(true);
+
+        paint.setLetterSpacing(currentUserSetting.letterSpacing);
+
+        Typeface baseFace = Typeface.DEFAULT;
+        try {
+            if ("RIDIBATANG".equals(currentUserSetting.fontFamily)) baseFace = ResourcesCompat.getFont(this, R.font.ridibatang);
+            else if ("KOPUB_BATANG".equals(currentUserSetting.fontFamily)) baseFace = ResourcesCompat.getFont(this, R.font.kopub_batang);
+            else if ("NANUM_BARUN".equals(currentUserSetting.fontFamily)) baseFace = ResourcesCompat.getFont(this, R.font.nanum_barun_gothic);
+            else if ("NANUM_ROUND".equals(currentUserSetting.fontFamily)) baseFace = ResourcesCompat.getFont(this, R.font.nanum_square_round);
+            else if ("MARU".equals(currentUserSetting.fontFamily)) baseFace = ResourcesCompat.getFont(this, R.font.maruburi);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        if (currentUserSetting.isBold) {
+            paint.setTypeface(Typeface.create(baseFace, Typeface.BOLD));
+        } else {
+            paint.setTypeface(Typeface.create(baseFace, Typeface.NORMAL));
+        }
 
         int padding = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, 24f, getResources().getDisplayMetrics());
@@ -297,7 +347,7 @@ public class ViewerActivity extends AppCompatActivity {
 
         StaticLayout layout = StaticLayout.Builder
                 .obtain(fullText, 0, fullText.length(), paint, availableWidth)
-                .setLineSpacing(0, lineSpacing)
+                .setLineSpacing(0, currentUserSetting.lineSpacing)
                 .build();
 
         List<String> paginatedStrings = new ArrayList<>();
@@ -326,7 +376,7 @@ public class ViewerActivity extends AppCompatActivity {
 
         // toggleBars 로 변경
         pageAdapter = new PageAdapter(
-                paginatedStrings, fontSize, lineSpacing, fontColor, this::toggleBars);
+                paginatedStrings, currentUserSetting, fontColor, this::toggleBars);
         viewPager.setAdapter(pageAdapter);
     }
 

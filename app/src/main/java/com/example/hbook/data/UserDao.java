@@ -3,6 +3,7 @@ package com.example.hbook.data;
 import androidx.room.Dao;
 import androidx.room.Insert;
 import androidx.room.Query;
+import androidx.room.Update;
 
 import com.example.hbook.model.User;
 import com.example.hbook.model.UserSetting;
@@ -28,4 +29,7 @@ public interface UserDao {
     // 로그인한 유저의 설정 불러옴
     @Query("SELECT * FROM user_settings WHERE user_id = :userId")
     UserSetting getUserSetting(int userId);
+
+    @Update
+    void updateUserSetting(UserSetting userSetting);
 }
