@@ -139,16 +139,24 @@ public class SignupActivity extends AppCompatActivity {
 
             UserSetting defaultSetting = new UserSetting((int) newUserId);
 
+            defaultSetting.fontSize = 18f;
+            defaultSetting.lineSpacing = 1.5f;
+            defaultSetting.letterSpacing = 0.0f;
+            defaultSetting.paragraphSpacing = 1.0f;
+            defaultSetting.backgroundColor = "#F5F5F5";
+            defaultSetting.fontFamily = "DEFAULT";
+            defaultSetting.isBold = false;
+
             if (age >= 65) {
                 // 1. 노인: 글자 크기 크게, 줄 간격 약간 넓게
                 defaultSetting.fontSize = 28f;
                 defaultSetting.lineSpacing = 1.8f;
-                defaultSetting.backgroundColor = "#FDF5E6";
+                defaultSetting.fontFamily = "KOPUB_BATANG";
             } else if (age <= 12) {
-                // 2. 어린이: 글자 크기 약간 크게, 부드러운 배경색
+                // 2. 어린이: 글자 크기 약간 크게
                 defaultSetting.fontSize = 22f;
                 defaultSetting.lineSpacing = 1.8f;
-                defaultSetting.backgroundColor = "#FFF0F5";
+                defaultSetting.fontFamily = "NANUM_ROUND";
             }
 
             if (hasDyslexia) {
@@ -156,8 +164,8 @@ public class SignupActivity extends AppCompatActivity {
                 defaultSetting.lineSpacing = Math.max(defaultSetting.lineSpacing, 2.0f);
                 defaultSetting.letterSpacing = 0.15f;
                 defaultSetting.paragraphSpacing = 2.0f;
-                defaultSetting.backgroundColor = "#FDF5E6";
-                defaultSetting.fontFamily = "SANS_SERIF";
+                defaultSetting.backgroundColor = "#F6F1E5";
+                defaultSetting.fontFamily = "NANUM_BARUN";
             }
 
                 userDao.insertUserSetting(defaultSetting);
