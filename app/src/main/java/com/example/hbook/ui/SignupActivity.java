@@ -162,6 +162,7 @@ public class SignupActivity extends AppCompatActivity {
             if (hasDyslexia) {
                 // 난독증 환자: 글자 크기 약간 크게, 줄 간격 & 자간 & 문단 간격 넓게, 눈이 편한 배경색
                 defaultSetting.lineSpacing = Math.max(defaultSetting.lineSpacing, 2.0f);
+                defaultSetting.fontSize = 22f;
                 defaultSetting.letterSpacing = 0.15f;
                 defaultSetting.paragraphSpacing = 2.0f;
                 defaultSetting.backgroundColor = "#F6F1E5";
