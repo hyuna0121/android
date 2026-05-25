@@ -28,5 +28,6 @@ public class OcrResponse {
         public float confidence_score;
         public float valence;
         public float arousal;
+        public String tts_instruction;
     }
 }

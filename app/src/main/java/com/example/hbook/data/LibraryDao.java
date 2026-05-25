@@ -44,6 +44,9 @@ public interface LibraryDao {
     @Query("SELECT * FROM pages WHERE book_id = :bookId ORDER BY page_number ASC")
     List<Page> getPagesForBook(int bookId);
 
+    @Query("UPDATE pages SET audio_file_path = :filePath WHERE page_id = :pageId")
+    void updateAudioFilePath(int pageId, String filePath);
+
     @Insert
     void insertLog(ReaderLog log);
 

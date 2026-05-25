@@ -1,5 +1,6 @@
 package com.example.hbook.model;
 
+import androidx.annotation.Nullable;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.ForeignKey;
@@ -32,6 +33,15 @@ public class Page {
 
     @ColumnInfo(name = "emotion_arousal")
     public float emotionArousal;
+
+    // KoBERT 감정 레이블
+    @Nullable
+    @ColumnInfo(name = "emotion_label", defaultValue = "")
+    public String emotionLabel;
+
+    // Qwen3 TTS 생성 후 저장한 .wav 파일의 절대 경로
+    @ColumnInfo(name = "audio_file_path")
+    public String audioFilePath;
 
     public Page(int bookId, int pageNumber, String extractedText) {
         this.bookId = bookId;

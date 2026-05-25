@@ -3,6 +3,7 @@ package com.example.hbook.ui;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -11,12 +12,15 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.text.StaticLayout;
 import android.text.TextPaint;
+import android.util.Base64;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.res.ResourcesCompat;
@@ -26,17 +30,32 @@ import com.example.hbook.R;
 import com.example.hbook.data.AppDatabase;
 import com.example.hbook.data.LibraryDao;
 import com.example.hbook.model.Page;
+import com.example.hbook.model.TtsRequest;
+import com.example.hbook.model.TtsResponse;
 import com.example.hbook.model.UserSetting;
+import com.example.hbook.network.ApiService;
 import com.example.hbook.util.EmotionTtsHelper;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
+import okhttp3.OkHttpClient;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+
 public class ViewerActivity extends AppCompatActivity {
+
+    private static final String TAG = "ViewerActivity";
 
     private boolean isTopBarVisible    = true;
     private boolean isBottomBarVisible = true;
@@ -49,12 +68,18 @@ public class ViewerActivity extends AppCompatActivity {
     private ImageView btnTtsPlay;
     private ViewPager2 viewPager;
 
-    private TextToSpeech tts;
-    private boolean isTtsReady = false;
+    private TextToSpeech androidTts;
+    private boolean isAndroidTtsReady = false;
+
+    private MediaPlayer mediaPlayer;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     // 책 전체 페이지의 valence/arousal 평균값
     private float avgValence = 0f;
     private float avgArousal = 0f;
+
+    private ApiService apiService;
 
     // 사용자 뷰 설정
     float userFontSize    = 20f;
@@ -75,6 +100,7 @@ public class ViewerActivity extends AppCompatActivity {
 
     private  List<WordToken> wordTokens = new ArrayList<>();
     private List<Integer> pageStartIndex = new ArrayList<>();
+    private List<Page> dbPages = new ArrayList<>();
     private int currentWordIdx = 0;
     private PageAdapter pageAdapter = null;
     private String fullText = "";
@@ -166,16 +192,16 @@ public class ViewerActivity extends AppCompatActivity {
                 });
 
         // ── TTS 초기화 ───────────────────────────────────────────────────────
-        tts = new TextToSpeech(this, status -> {
+        androidTts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
-                int result = tts.setLanguage(new Locale("ko", "KR"));
+                int result = androidTts.setLanguage(new Locale("ko", "KR"));
                 if (result == TextToSpeech.LANG_MISSING_DATA
                         || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    tts.setLanguage(Locale.getDefault());
+                    androidTts.setLanguage(Locale.getDefault());
                 }
 
                 // 읽기 완료 시 버튼 재생 아이콘으로 복귀
-                tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                androidTts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                     @Override public void onStart(String id) {}
 
                     @Override
@@ -199,7 +225,7 @@ public class ViewerActivity extends AppCompatActivity {
 
                     @Override
                     public void onError(String id) {
-                        runOnUiThread(() -> setPlayingState(false));
+                        mainHandler.post(() -> setPlayingState(false));
                     }
 
                     @Override
@@ -212,40 +238,211 @@ public class ViewerActivity extends AppCompatActivity {
                     }
                 });
 
-                isTtsReady = true;
+                isAndroidTtsReady = true;
             }
         });
-        // ────────────────────────────────────────────────────────────────────
+
+        // ── Retrofit 초기화 (폴백 실시간 TTS 요청용) ─────────────────────────────
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(120, TimeUnit.SECONDS)
+                .readTimeout(300, TimeUnit.SECONDS)
+                .writeTimeout(120, TimeUnit.SECONDS)
+                .build();
+        apiService = new Retrofit.Builder()
+                .baseUrl("https://egal-furcately-nydia.ngrok-free.dev/")
+                .client(client)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
+                .create(ApiService.class);
 
         // ── TTS 재생 버튼 ────────────────────────────────────────────────────
         btnTtsPlay.setOnClickListener(v -> {
-            if (!isTtsReady) return;
-
             if (isPlaying) {
-                // 재생 중 → 정지
-                tts.stop();
-                setPlayingState(false);
-                if (pageAdapter != null) pageAdapter.clearHighlight();
+                stopPlayback();
             } else {
-                // 정지 중 → 현재 페이지 텍스트 읽기
                 setPlayingState(true);
-                speakNextWord();
+                speakNextPage();
             }
         });
+
+        // 화면 터치 시 상단·하단 바 토글
+        viewPager.setOnClickListener(v -> toggleBars());
         // ────────────────────────────────────────────────────────────────────
     }
+
+    private void speakNextPage() {
+        if (!isPlaying || pageAdapter == null) return;
+        if (currentWordIdx >= pageAdapter.getPageCount()) return;
+
+        String pageText = pageAdapter.getPageText(currentWordIdx);
+        if (pageText == null || pageText.isEmpty()) {
+            advanceToNextPage();
+            return;
+        }
+
+        // 현재 화면 페이지 인덱스를 DB 페이지와 매핑
+        Page currentPage = getDbPageForViewerIndex(currentWordIdx);
+
+        // ── 경로 1: 로컬 파일 재생 ──────────────────────────────
+        if (currentPage != null
+                && currentPage.audioFilePath != null
+                && new File(currentPage.audioFilePath).exists()) {
+
+            playLocalAudio(currentPage.audioFilePath);
+            return;
+        }
+
+        // ── 경로 2: /api/tts 실시간 요청 ────────────────────────
+        if (currentPage != null
+                && currentPage.emotionLabel != null
+                && !currentPage.emotionLabel.isEmpty()) {
+
+            requestTtsFromServer(currentPage, pageText);
+            return;
+        }
+
+        // ── 경로 3: Android 기본 TTS 폴백 ───────────────────────
+        speakWithAndroidTts(pageText);
+    }
+
+    private void playLocalAudio(String filePath) {
+        try {
+            releaseMediaPlayer();
+            mediaPlayer = new MediaPlayer();
+            mediaPlayer.setDataSource(filePath);
+            mediaPlayer.prepare();
+            mediaPlayer.setOnCompletionListener(mp -> mainHandler.post(this::advanceToNextPage));
+            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                Log.e(TAG, "MediaPlayer 오류: what=" + what);
+                mainHandler.post(() -> speakWithAndroidTts(
+                        pageAdapter != null ? pageAdapter.getPageText(currentWordIdx) : ""));
+                return true;
+            });
+            mediaPlayer.start();
+            Log.d(TAG, "로컬 재생: " + new File(filePath).getName());
+        } catch (Exception e) {
+            Log.e(TAG, "로컬 재생 실패: " + e.getMessage());
+            // 파일 깨짐 → 실시간 요청으로 강등
+            Page p = getDbPageForViewerIndex(currentWordIdx);
+            if (p != null && p.extractedText != null) requestTtsFromServer(p, p.extractedText);
+            else speakWithAndroidTts(pageAdapter != null ? pageAdapter.getPageText(currentWordIdx) : "");
+        }
+    }
+
+    private void requestTtsFromServer(Page page, String pageText) {
+        // tts_instruction 이 DB 에 없으면 감정 레이블로 기본 지시문 생성
+        String instruction = buildFallbackInstruction(page.emotionLabel);
+
+        TtsRequest req = new TtsRequest(pageText, instruction, page.pageId);
+        apiService.generateTts(req).enqueue(new Callback<TtsResponse>() {
+            @Override
+            public void onResponse(@NonNull Call<TtsResponse> call,
+                                   @NonNull Response<TtsResponse> response) {
+                if (!isPlaying) return;
+
+                if (response.isSuccessful()
+                        && response.body() != null
+                        && response.body().audio_base64 != null) {
+
+                    byte[] audioBytes = Base64.decode(response.body().audio_base64, Base64.DEFAULT);
+
+                    // 받은 오디오를 filesDir 에 캐싱하고 DB 업데이트
+                    ExecutorService executor = Executors.newSingleThreadExecutor();
+                    executor.execute(() -> {
+                        try {
+                            File audioFile = new File(
+                                    getFilesDir(),
+                                    "tts_book" + page.bookId + "_page" + page.pageNumber + ".wav"
+                            );
+                            try (FileOutputStream fos = new FileOutputStream(audioFile)) {
+                                fos.write(audioBytes);
+                            }
+                            AppDatabase.getInstance(ViewerActivity.this)
+                                    .libraryDao()
+                                    .updateAudioFilePath(page.pageId, audioFile.getAbsolutePath());
+
+                            // 파일 저장 완료 후 재생
+                            mainHandler.post(() -> playLocalAudio(audioFile.getAbsolutePath()));
+
+                        } catch (Exception e) {
+                            Log.e(TAG, "TTS 캐싱 실패: " + e.getMessage());
+                            mainHandler.post(() -> speakWithAndroidTts(pageText));
+                        }
+                    });
+
+                } else {
+                    // 서버 오류 → Android TTS 로 폴백
+                    mainHandler.post(() -> speakWithAndroidTts(pageText));
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<TtsResponse> call, @NonNull Throwable t) {
+                Log.e(TAG, "TTS 서버 요청 실패: " + t.getMessage());
+                mainHandler.post(() -> speakWithAndroidTts(pageText));
+            }
+        });
+    }
+
+    private void speakWithAndroidTts(String text) {
+        if (!isAndroidTtsReady || androidTts == null || text.isEmpty()) return;
+
+        // 기존 EmotionTtsHelper 로직 인라인 적용
+        float arousalRange = (1.6f - 0.6f) / 2f;
+        float speechRate   = 1.0f + (avgArousal * arousalRange);
+        if (avgValence < -0.5f) speechRate -= (-avgValence - 0.5f) * 0.3f;
+        speechRate = Math.max(0.6f, Math.min(1.6f, speechRate));
+
+        float pitchRange = (1.4f - 0.7f) / 2f;
+        float pitch      = 1.0f + (avgValence * pitchRange);
+        if (avgArousal > 0.5f && avgValence > 0f) pitch += avgArousal * 0.1f;
+        pitch = Math.max(0.7f, Math.min(1.4f, pitch));
+
+        androidTts.setSpeechRate(speechRate);
+        androidTts.setPitch(pitch);
+        androidTts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "page_" + currentWordIdx);
+    }
+
+    private void advanceToNextPage() {
+        if (!isPlaying) return;
+        currentWordIdx++;
+        if (pageAdapter != null && currentWordIdx < pageAdapter.getPageCount()) {
+            viewPager.setCurrentItem(currentWordIdx, true);
+            speakNextPage();
+        } else {
+            setPlayingState(false);
+            currentWordIdx = 0;
+            if (pageAdapter != null) pageAdapter.clearHighlight();
+        }
+    }
+
+    private void stopPlayback() {
+        setPlayingState(false);
+        releaseMediaPlayer();
+        if (androidTts != null) androidTts.stop();
+        if (pageAdapter != null) pageAdapter.clearHighlight();
+    }
+
+    private void releaseMediaPlayer() {
+        if (mediaPlayer != null) {
+            try {
+                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
+                mediaPlayer.release();
+            } catch (Exception ignored) {}
+            mediaPlayer = null;
+        }
+    }
+
     private void buildWordTokens(String text) {
         wordTokens.clear();
         int i = 0;
         while (i < text.length()) {
             while (i < text.length() && Character.isWhitespace(text.charAt(i))) i++;
             if (i >= text.length()) break;
-
             int start = i;
-            while(i < text.length() && !Character.isWhitespace(text.charAt(i))) i++;
-            int end = i;
-
-            wordTokens.add(new WordToken(text.substring(start, end), start, end));
+            while (i < text.length() && !Character.isWhitespace(text.charAt(i))) i++;
+            wordTokens.add(new WordToken(
+                    text.substring(start, i), start, i));
         }
     }
 
@@ -257,7 +454,7 @@ public class ViewerActivity extends AppCompatActivity {
         if (pageText.isEmpty()) return;
 
         EmotionTtsHelper.speakWithEmotion(
-                tts,
+                androidTts,
                 pageText,
                 avgValence,
                 avgArousal,
@@ -380,9 +577,27 @@ public class ViewerActivity extends AppCompatActivity {
         viewPager.setAdapter(pageAdapter);
     }
 
+    private Page getDbPageForViewerIndex(int viewerIdx) {
+        if (dbPages.isEmpty() || pageAdapter == null) return null;
+        // pageAdapter 의 페이지 텍스트 시작 오프셋으로 DB 페이지 역추적
+        int globalOffset = pageStartIndex.size() > viewerIdx
+                ? pageStartIndex.get(viewerIdx) : 0;
+        int charCount = 0;
+        for (Page p : dbPages) {
+            charCount += p.extractedText != null ? p.extractedText.length() + 2 : 2; // +2 = "\n\n"
+            if (charCount > globalOffset) return p;
+        }
+        return dbPages.get(dbPages.size() - 1);
+    }
+
+    private String buildFallbackInstruction(String label) {
+        if (label == null || label.isEmpty()) return "자연스럽고 차분한 목소리로 읽어주세요.";
+        return label + "의 감정이 담긴 목소리로 읽어주세요.";
+    }
+
     @Override
     protected void onPause() {
-        if (tts != null && tts.isSpeaking()) tts.stop();
+        if (androidTts != null && androidTts.isSpeaking()) androidTts.stop();
         setPlayingState(false);
         if (pageAdapter != null) pageAdapter.clearHighlight();
         super.onPause();
@@ -390,10 +605,11 @@ public class ViewerActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        if (tts != null) {
-            tts.stop();
-            tts.shutdown();
-        }
         super.onDestroy();
+        stopPlayback();
+        if (androidTts != null) {
+            androidTts.stop();
+            androidTts.shutdown();
+        }
     }
 }

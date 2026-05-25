@@ -9,6 +9,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
+import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -33,6 +34,8 @@ import androidx.core.content.ContextCompat;
 import com.example.hbook.data.AppDatabase;
 import com.example.hbook.model.Book;
 import com.example.hbook.model.Page;
+import com.example.hbook.model.TtsRequest;
+import com.example.hbook.model.TtsResponse;
 import com.example.hbook.network.ApiService;
 import com.example.hbook.model.OcrResponse;
 import com.example.hbook.R;
@@ -63,6 +66,8 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class CameraActivity extends AppCompatActivity {
 
+    private static final String TAG = "CameraActivity";
+
     private PreviewView viewFinder;
     private ImageCapture imageCapture; // 사진을 캡처하는 역할
     private ExecutorService cameraExecutor; // 카메라 작업을 처리할 별도의 스레드
@@ -70,6 +75,20 @@ public class CameraActivity extends AppCompatActivity {
     private List<File> capturedFiles = new ArrayList<>();  // 찍은 사진들 모아둘 리스트
     private TextView btnSendMultiple;
     private int currentUserId = -1;
+
+    private final OkHttpClient okHttpClient = new OkHttpClient.Builder()
+            .connectTimeout(120, TimeUnit.SECONDS)
+            .readTimeout(300, TimeUnit.SECONDS)
+            .writeTimeout(120, TimeUnit.SECONDS)
+            .build();
+
+    private final Retrofit retrofit = new Retrofit.Builder()
+            .baseUrl("https://egal-furcately-nydia.ngrok-free.dev/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build();
+
+    private final ApiService apiService = retrofit.create(ApiService.class);
 
     // 갤러리에서 사진을 골랐을 때 결과 받아옴
     private final ActivityResultLauncher<String> galleryLauncher =
@@ -253,109 +272,112 @@ public class CameraActivity extends AppCompatActivity {
 
     // 서버로 사진들 전송하는 함수
     private void uploadMultipleToServer(List<File> fileList) {
-        OkHttpClient okHttpClient = new OkHttpClient.Builder()
-                .connectTimeout(120, TimeUnit.SECONDS)
-                .readTimeout(300, TimeUnit.SECONDS)
-                .writeTimeout(120, TimeUnit.SECONDS)
-                .build();
-
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("https://egal-furcately-nydia.ngrok-free.dev/")
-                .client(okHttpClient)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
-
-        ApiService apiService = retrofit.create(ApiService.class);
-
-        // 여러 개의 파일 담을 리스트
         List<MultipartBody.Part> parts = new ArrayList<>();
-
         for (File file : fileList) {
             RequestBody requestFile = RequestBody.create(MediaType.parse("image/jpeg"), file);
-            MultipartBody.Part body = MultipartBody.Part.createFormData("image", file.getName(), requestFile);
-            parts.add(body);
+            parts.add(MultipartBody.Part.createFormData("image", file.getName(), requestFile));
         }
-
         RequestBody pageNumBody = RequestBody.create(MediaType.parse("text/plain"), "1");
 
-        // 리스트 전송
-        Call<OcrResponse> call = apiService.uploadMultipleImages(parts, pageNumBody);
-        call.enqueue(new Callback<OcrResponse>() {
+        apiService.uploadMultipleImages(parts, pageNumBody).enqueue(new Callback<OcrResponse>() {
             @Override
-            public void onResponse(Call<OcrResponse> call, Response<OcrResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    OcrResponse ocrData = response.body();
+            public void onResponse(@NonNull Call<OcrResponse> call,
+                                   @NonNull Response<OcrResponse> response) {
 
-                    if ("success".equals(ocrData.status)) {
-                        ExecutorService executor = Executors.newSingleThreadExecutor();
-                        executor.execute(() -> {
-                            AppDatabase db = AppDatabase.getInstance(CameraActivity.this);
-
-                            String bookTitle = (bookName != null) ? bookName : "무제";
-                            Book newBook = new Book(bookTitle, currentUserId);
-                            long generatedBookId = db.libraryDao().insertBook(newBook);
-
-                            StringBuilder fullText = new StringBuilder();
-
-                            if (ocrData.results != null && !ocrData.results.isEmpty()) {
-                                for (int i = 0; i < ocrData.results.size(); i++) {
-                                    OcrResponse.PageResult pageData = ocrData.results.get(i);
-                                    if (pageData.extracted_text != null) {
-                                        fullText.append(pageData.extracted_text).append("\n\n");
-
-                                        Page newPage = new Page((int) generatedBookId, i+1, pageData.extracted_text);
-
-                                        if (pageData.sentiment != null) {
-                                            newPage.emotionValence = pageData.sentiment.valence;
-                                            newPage.emotionArousal = pageData.sentiment.arousal;
-                                        }
-
-                                        db.libraryDao().insertPage(newPage);
-                                    }
-                                }
-                            } else if (ocrData.extracted_text != null) {
-                                fullText.append(ocrData.extracted_text);
-                                Page newPage = new Page((int) generatedBookId, 1, ocrData.extracted_text);
-
-                                if (ocrData.sentiment != null) {
-                                    newPage.emotionValence = ocrData.sentiment.valence;
-                                    newPage.emotionArousal = ocrData.sentiment.arousal;
-                                }
-
-                                db.libraryDao().insertPage(newPage);
-                            }
-
-                            runOnUiThread(() -> {
-                                Toast.makeText(CameraActivity.this, "변환 완료", Toast.LENGTH_SHORT).show();
-
-                                // 1. 텍스트뷰로 이동하기 위한 인텐트 생성
-                                Intent intent = new Intent(CameraActivity.this, ViewerActivity.class);
-
-                                // 2. 책 번호와 제목을 함께 보내기
-                                intent.putExtra("BOOK_ID", (int) generatedBookId);
-                                if (bookName != null) {
-                                    intent.putExtra("BOOK_NAME", bookName);
-                                }
-
-                                // 3. 텍스트뷰로 이동
-                                startActivity(intent);
-                                finish();
-                            });
-                        });
-                    } else {
-                        Toast.makeText(CameraActivity.this, "서버 응답 오류", Toast.LENGTH_SHORT).show();
-                    }
-                } else {
-                    Toast.makeText(CameraActivity.this, "서버 응답 오류 (JSON 파싱 에러)", Toast.LENGTH_SHORT).show();
+                if (!response.isSuccessful() || response.body() == null) {
+                    showToast("서버 응답 오류 (JSON 파싱 에러)");
+                    resetButton();
+                    cleanupFiles(capturedFiles);
+                    return;
                 }
 
-                for (File f : capturedFiles) { if (f.exists()) f.delete(); }
+                OcrResponse ocrData = response.body();
+                if (!"success".equals(ocrData.status)) {
+                    showToast("서버 응답 오류");
+                    resetButton();
+                    cleanupFiles(capturedFiles);
+                    return;
+                }
+
+                // DB 저장은 백그라운드에서
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+                executor.execute(() -> {
+                    AppDatabase db       = AppDatabase.getInstance(CameraActivity.this);
+                    String bookTitle     = (bookName != null) ? bookName : "무제";
+                    Book newBook         = new Book(bookTitle, currentUserId);
+                    long generatedBookId = db.libraryDao().insertBook(newBook);
+
+                    // ── 1단계: 페이지를 DB 에 모두 저장 ─────────────────
+                    List<Page>   savedPages      = new ArrayList<>();
+                    List<String> ttsInstructions = new ArrayList<>();
+
+                    if (ocrData.results != null && !ocrData.results.isEmpty()) {
+                        for (int i = 0; i < ocrData.results.size(); i++) {
+                            OcrResponse.PageResult pageData = ocrData.results.get(i);
+                            if (pageData.extracted_text == null) continue;
+
+                            Page newPage = new Page((int) generatedBookId, i + 1, pageData.extracted_text);
+                            if (pageData.sentiment != null) {
+                                newPage.emotionValence = pageData.sentiment.valence;
+                                newPage.emotionArousal = pageData.sentiment.arousal;
+                                newPage.emotionLabel   = pageData.sentiment.label != null
+                                        ? pageData.sentiment.label : "";
+                            }
+                            db.libraryDao().insertPage(newPage);
+                            savedPages.add(newPage);
+
+                            String instr = (pageData.sentiment != null
+                                    && pageData.sentiment.tts_instruction != null)
+                                    ? pageData.sentiment.tts_instruction
+                                    : "자연스럽고 차분한 목소리로 읽어주세요.";
+                            ttsInstructions.add(instr);
+                        }
+
+                    } else if (ocrData.extracted_text != null) {
+                        // 단일 페이지 응답
+                        Page newPage = new Page((int) generatedBookId, 1, ocrData.extracted_text);
+                        if (ocrData.sentiment != null) {
+                            newPage.emotionValence = ocrData.sentiment.valence;
+                            newPage.emotionArousal = ocrData.sentiment.arousal;
+                            newPage.emotionLabel   = ocrData.sentiment.label != null
+                                    ? ocrData.sentiment.label : "";
+                        }
+                        db.libraryDao().insertPage(newPage);
+                        savedPages.add(newPage);
+
+                        String instr = (ocrData.sentiment != null
+                                && ocrData.sentiment.tts_instruction != null)
+                                ? ocrData.sentiment.tts_instruction
+                                : "자연스럽고 차분한 목소리로 읽어주세요.";
+                        ttsInstructions.add(instr);
+                    }
+
+                    // ── 2단계: 먼저 ViewerActivity 로 이동 ──────────────
+                    // TTS 생성은 오래 걸리므로 화면 전환을 먼저 하고
+                    // 이 스레드가 계속 백그라운드에서 TTS 를 생성합니다.
+                    runOnUiThread(() -> {
+                        showToast("변환 완료");
+                        Intent intent = new Intent(CameraActivity.this, ViewerActivity.class);
+                        intent.putExtra("BOOK_ID", (int) generatedBookId);
+                        if (bookName != null) intent.putExtra("BOOK_NAME", bookName);
+                        startActivity(intent);
+                        finish();
+                    });
+
+                    // ── 3단계: 백그라운드에서 TTS 생성 + 저장 ──────────
+                    generateTtsForPages(savedPages, ttsInstructions, db);
+                });
+
+                cleanupFiles(capturedFiles);
                 capturedFiles.clear();
             }
 
             @Override
-            public void onFailure(Call<OcrResponse> call, Throwable t) {
-                for (File f : fileList) { if (f.exists()) f.delete(); }
+            public void onFailure(@NonNull Call<OcrResponse> call, @NonNull Throwable t) {
+                Log.e(TAG, "스캔 요청 실패", t);
+                showToast("서버 연결 실패");
+                resetButton();
+                cleanupFiles(fileList);
             }
         });
     }
@@ -382,6 +404,70 @@ public class CameraActivity extends AppCompatActivity {
         }
 
         return result != null ? result : "unknown";
+    }
+
+    private void generateTtsForPages(List<Page> pages,
+                                     List<String> instructions,
+                                     AppDatabase db) {
+        for (int i = 0; i < pages.size(); i++) {
+            Page   page  = pages.get(i);
+            String instr = instructions.get(i);
+
+            if (page.extractedText == null || page.extractedText.isEmpty()) continue;
+
+            TtsRequest ttsReq = new TtsRequest(page.extractedText, instr, page.pageId);
+
+            try {
+                // .execute() 로 동기 호출 (이미 백그라운드 스레드이므로 안전)
+                Response<TtsResponse> ttsResp = apiService.generateTts(ttsReq).execute();
+
+                if (ttsResp.isSuccessful()
+                        && ttsResp.body() != null
+                        && ttsResp.body().audio_base64 != null) {
+
+                    byte[] audioBytes = Base64.decode(ttsResp.body().audio_base64, Base64.DEFAULT);
+
+                    // filesDir: 앱 삭제 전까지 보존되는 내부 저장소
+                    File audioFile = new File(
+                            getFilesDir(),
+                            "tts_book" + page.bookId + "_page" + page.pageNumber + ".wav"
+                    );
+
+                    try (FileOutputStream fos = new FileOutputStream(audioFile)) {
+                        fos.write(audioBytes);
+                    }
+
+                    // DB 에 경로 기록
+                    db.libraryDao().updateAudioFilePath(page.pageId, audioFile.getAbsolutePath());
+                    Log.d(TAG, "TTS 저장 완료: " + audioFile.getName());
+
+                } else {
+                    Log.w(TAG, "TTS 응답 오류 — page " + page.pageNumber);
+                }
+
+            } catch (Exception e) {
+                // TTS 실패해도 나머지 페이지는 계속 처리
+                // ViewerActivity 폴백이 null 경로를 감지해 실시간 요청으로 전환
+                Log.e(TAG, "TTS 예외 — page " + page.pageNumber + ": " + e.getMessage());
+            }
+        }
+
+        Log.d(TAG, "전체 페이지 TTS 생성 완료 (" + pages.size() + "페이지)");
+    }
+
+    private void showToast(String msg) {
+        runOnUiThread(() -> Toast.makeText(CameraActivity.this, msg, Toast.LENGTH_SHORT).show());
+    }
+
+    private void resetButton() {
+        runOnUiThread(() -> {
+            btnSendMultiple.setEnabled(true);
+            btnSendMultiple.setText(capturedFiles.size() + "장 변환");
+        });
+    }
+
+    private void cleanupFiles(List<File> files) {
+        for (File f : files) { if (f != null && f.exists()) f.delete(); }
     }
 
     @Override
