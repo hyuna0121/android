@@ -6,6 +6,7 @@ import java.util.List;
 
 import okhttp3.MultipartBody;
 import okhttp3.RequestBody;
+import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.http.Multipart;
 import retrofit2.http.POST;
@@ -23,6 +24,14 @@ public interface ApiService {
     @POST("api/scan")
     Call<OcrResponse> uploadMultipleImages(
             @Part List<MultipartBody.Part> images,
+            @Part List<MultipartBody.Part> corners,
             @Part("page_number") RequestBody pageNumber
+    );
+
+    @Multipart
+    @POST("api/preview-crop")
+    Call<ResponseBody> previewCrop(
+            @Part List<MultipartBody.Part> images,
+            @Part List<MultipartBody.Part> corners
     );
 }
