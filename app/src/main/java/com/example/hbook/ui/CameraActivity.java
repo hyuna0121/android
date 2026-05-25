@@ -77,6 +77,7 @@ public class CameraActivity extends AppCompatActivity {
     private int pendingGalleryIndex = 0;
 
     private TextView btnSendMultiple;
+    private TextView btnPreview;
 
     // ── 갤러리 런처 ──────────────────────────────────────────────────
     private final ActivityResultLauncher<String> galleryLauncher =
@@ -157,7 +158,8 @@ public class CameraActivity extends AppCompatActivity {
         View      btnCapture = findViewById(R.id.btn_capture);
         TextView  tvBack     = findViewById(R.id.tv_back);
         TextView  tvBookTitle= findViewById(R.id.tv_book_title);
-        btnSendMultiple      = findViewById(R.id.btn_send_multiple);
+        btnSendMultiple = findViewById(R.id.btn_send_multiple);
+        btnPreview      = findViewById(R.id.btn_preview);
 
         if (bookName != null) tvBookTitle.setText(bookName);
 
@@ -180,6 +182,12 @@ public class CameraActivity extends AppCompatActivity {
                 btnSendMultiple.setEnabled(false);
                 btnSendMultiple.setText("변환 중...");
                 uploadMultipleToServer(capturedItems);
+            }
+        });
+
+        btnPreview.setOnClickListener(v -> {
+            if (!capturedItems.isEmpty()) {
+                openPreviewActivity();
             }
         });
 
@@ -284,14 +292,31 @@ public class CameraActivity extends AppCompatActivity {
     // UI 갱신
     // ─────────────────────────────────────────────────────────────────
 
+    private void openPreviewActivity() {
+        String[] paths   = new String[capturedItems.size()];
+        String[] corners = new String[capturedItems.size()];
+        for (int i = 0; i < capturedItems.size(); i++) {
+            paths[i]   = capturedItems.get(i).file.getAbsolutePath();
+            corners[i] = capturedItems.get(i).hasCorners()
+                    ? capturedItems.get(i).cornersToString() : "";
+        }
+        Intent intent = new Intent(this, PreviewActivity.class);
+        intent.putExtra(PreviewActivity.EXTRA_IMAGE_PATHS,  paths);
+        intent.putExtra(PreviewActivity.EXTRA_CORNERS_LIST, corners);
+        startActivity(intent);
+    }
+
     private void updateSendButton() {
         int count = capturedItems.size();
         if (count > 0) {
+            btnPreview.setVisibility(View.VISIBLE);
+            btnPreview.setEnabled(true);
             btnSendMultiple.setText(count + "장 변환");
             btnSendMultiple.setVisibility(View.VISIBLE);
             btnSendMultiple.setEnabled(true);
         } else {
             btnSendMultiple.setVisibility(View.INVISIBLE);
+            btnPreview.setVisibility(View.INVISIBLE);
         }
     }
 

@@ -19,7 +19,10 @@ import androidx.annotation.Nullable;
  * 이미지 위에 4개의 드래그 가능한 꼭짓점 핸들을 표시하는 커스텀 View.
  *
  * 사용법:
- *   1. setBitmap() 으로 원본 이미지 설정
+ *   1. setBitmap(bmp, originalWidth, originalHeight) 으로 이미지 설정
+ *      - bmp            : 화면 표시용 (축소/회전 적용된) Bitmap
+ *      - originalWidth  : 원본 파일의 실제 픽셀 너비  (EXIF 회전 반영 후 기준)
+ *      - originalHeight : 원본 파일의 실제 픽셀 높이 (EXIF 회전 반영 후 기준)
  *   2. getCorners() 로 원본 픽셀 좌표 기준 꼭짓점 획득
  *
  * 좌표 순서: [0]=TL, [1]=TR, [2]=BR, [3]=BL
@@ -27,25 +30,29 @@ import androidx.annotation.Nullable;
 public class CropView extends View {
 
     // ── 디자인 상수 ──────────────────────────────────────────────────
-    private static final float HANDLE_RADIUS_DP   = 22f;
-    private static final float LINE_WIDTH_DP      = 2f;
-    private static final float TOUCH_RADIUS_DP    = 40f;
+    private static final float HANDLE_RADIUS_DP = 22f;
+    private static final float LINE_WIDTH_DP    = 2f;
+    private static final float TOUCH_RADIUS_DP  = 40f;
 
-    private static final int   COLOR_HANDLE       = 0xFF4F8EF7;  // 파란색
-    private static final int   COLOR_HANDLE_LABEL = 0xFFFFFFFF;
-    private static final int   COLOR_LINE         = 0xFF4F8EF7;
-    private static final int   COLOR_DIMMED        = 0x77000000;
+    private static final int COLOR_HANDLE       = 0xFF4F8EF7;
+    private static final int COLOR_HANDLE_LABEL = 0xFFFFFFFF;
+    private static final int COLOR_LINE         = 0xFF4F8EF7;
+    private static final int COLOR_DIMMED       = 0x77000000;
 
     // ── 상태 ─────────────────────────────────────────────────────────
-    /** 뷰 좌표계 기준 꼭짓점 4개 (TL, TR, BR, BL) */
     private final PointF[] pts = new PointF[4];
-    private int dragIndex = -1;   // 현재 드래그 중인 꼭짓점 인덱스 (-1 = 없음)
+    private int dragIndex = -1;
 
     // ── 이미지 ───────────────────────────────────────────────────────
     private Bitmap bitmap;
-    /** 이미지가 뷰 안에 그려지는 실제 영역 */
     private final RectF imageRect = new RectF();
-    private final Matrix imgMatrix = new Matrix();
+
+    /**
+     * 원본 파일의 실제 해상도 (EXIF 회전 적용 후 기준).
+     * getCorners() 에서 뷰 좌표 → 원본 픽셀 좌표 역산에 사용.
+     */
+    private int originalWidth  = 0;
+    private int originalHeight = 0;
 
     // ── Paint ────────────────────────────────────────────────────────
     private final Paint paintLine   = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -68,8 +75,8 @@ public class CropView extends View {
 
     private void init(Context context) {
         float density = context.getResources().getDisplayMetrics().density;
-        handleRadius  = HANDLE_RADIUS_DP  * density;
-        touchRadius   = TOUCH_RADIUS_DP   * density;
+        handleRadius  = HANDLE_RADIUS_DP * density;
+        touchRadius   = TOUCH_RADIUS_DP  * density;
 
         paintLine.setColor(COLOR_LINE);
         paintLine.setStrokeWidth(LINE_WIDTH_DP * density);
@@ -93,9 +100,17 @@ public class CropView extends View {
     // 공개 API
     // ─────────────────────────────────────────────────────────────────
 
-    /** 이미지를 설정하고 꼭짓점을 네 모서리에 초기화 */
-    public void setBitmap(Bitmap bmp) {
-        this.bitmap = bmp;
+    /**
+     * 이미지를 설정합니다.
+     *
+     * @param bmp            화면 표시용 Bitmap (축소·회전 적용됨)
+     * @param originalWidth  원본 파일의 실제 너비  (EXIF 회전 반영 후)
+     * @param originalHeight 원본 파일의 실제 높이 (EXIF 회전 반영 후)
+     */
+    public void setBitmap(Bitmap bmp, int originalWidth, int originalHeight) {
+        this.bitmap         = bmp;
+        this.originalWidth  = originalWidth;
+        this.originalHeight = originalHeight;
         if (getWidth() > 0) {
             layoutImage();
             resetCorners();
@@ -110,7 +125,6 @@ public class CropView extends View {
         float t = imageRect.top;
         float r = imageRect.right;
         float b = imageRect.bottom;
-        // 살짝 안쪽으로 (핸들이 잘리지 않도록)
         float m = handleRadius;
         pts[0].set(l + m, t + m); // TL
         pts[1].set(r - m, t + m); // TR
@@ -121,13 +135,23 @@ public class CropView extends View {
 
     /**
      * 원본 이미지 픽셀 좌표 기준 꼭짓점 반환.
+     *
+     * 뷰에 표시된 Bitmap 은 축소본이므로,
+     * originalWidth/originalHeight 를 기준으로 스케일을 역산합니다.
+     *
      * @return float[8]: x0,y0(TL), x1,y1(TR), x2,y2(BR), x3,y3(BL)
+     *                   단위: 원본 파일 픽셀
      */
     public float[] getCorners() {
         if (bitmap == null) return null;
 
-        float scaleX = bitmap.getWidth()  / imageRect.width();
-        float scaleY = bitmap.getHeight() / imageRect.height();
+        // 뷰 안의 이미지 표시 영역 크기
+        float displayW = imageRect.width();
+        float displayH = imageRect.height();
+
+        // 원본 픽셀 → 뷰 픽셀 스케일 (originalWidth/Height 기준으로 역산)
+        float scaleX = originalWidth  / displayW;
+        float scaleY = originalHeight / displayH;
 
         float[] result = new float[8];
         for (int i = 0; i < 4; i++) {
@@ -150,13 +174,11 @@ public class CropView extends View {
         }
     }
 
-    /** 이미지를 뷰 안에 비율 유지하며 꽉 채우는 영역 계산 */
     private void layoutImage() {
-        float vw = getWidth();
-        float vh = getHeight();
-        float bw = bitmap.getWidth();
-        float bh = bitmap.getHeight();
-
+        float vw    = getWidth();
+        float vh    = getHeight();
+        float bw    = bitmap.getWidth();
+        float bh    = bitmap.getHeight();
         float scale = Math.min(vw / bw, vh / bh);
         float iw    = bw * scale;
         float ih    = bh * scale;
@@ -170,10 +192,9 @@ public class CropView extends View {
         super.onDraw(canvas);
         if (bitmap == null) return;
 
-        // 1. 이미지 그리기
         canvas.drawBitmap(bitmap, null, imageRect, null);
 
-        // 2. 사다리꼴 바깥 어둡게
+        // 사다리꼴 바깥 어둡게
         Path dimPath = new Path();
         dimPath.addRect(0, 0, getWidth(), getHeight(), Path.Direction.CW);
         dimPath.moveTo(pts[0].x, pts[0].y);
@@ -184,7 +205,7 @@ public class CropView extends View {
         dimPath.setFillType(Path.FillType.EVEN_ODD);
         canvas.drawPath(dimPath, paintDim);
 
-        // 3. 사다리꼴 테두리 (점선)
+        // 사다리꼴 테두리
         Path linePath = new Path();
         linePath.moveTo(pts[0].x, pts[0].y);
         linePath.lineTo(pts[1].x, pts[1].y);
@@ -193,7 +214,7 @@ public class CropView extends View {
         linePath.close();
         canvas.drawPath(linePath, paintLine);
 
-        // 4. 핸들 (원 + 라벨)
+        // 핸들
         String[] labels = {"TL", "TR", "BR", "BL"};
         for (int i = 0; i < 4; i++) {
             canvas.drawCircle(pts[i].x, pts[i].y, handleRadius, paintHandle);
@@ -218,7 +239,6 @@ public class CropView extends View {
 
             case MotionEvent.ACTION_MOVE:
                 if (dragIndex >= 0) {
-                    // 이미지 영역 안으로 클램프
                     float cx = Math.max(imageRect.left,  Math.min(imageRect.right,  x));
                     float cy = Math.max(imageRect.top,   Math.min(imageRect.bottom, y));
                     pts[dragIndex].set(cx, cy);
@@ -235,7 +255,6 @@ public class CropView extends View {
         return super.onTouchEvent(event);
     }
 
-    /** 터치 위치에서 가장 가까운 핸들 인덱스를 반환. 없으면 -1 */
     private int findClosestHandle(float x, float y) {
         int   best = -1;
         float minD = Float.MAX_VALUE;
