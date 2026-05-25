@@ -23,6 +23,7 @@ public interface ApiService {
     @POST("api/scan")
     Call<OcrResponse> uploadMultipleImages(
             @Part List<MultipartBody.Part> images,
+            @Part List<MultipartBody.Part> corners,
             @Part("page_number") RequestBody pageNumber
     );
 }
