@@ -43,6 +43,13 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.PreviewActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.CropActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
     </application>
 
 </manifest>
