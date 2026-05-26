@@ -57,34 +57,42 @@ public class ViewerActivity extends AppCompatActivity {
 
     private static final String TAG = "ViewerActivity";
 
-    private boolean isTopBarVisible    = true;
-    private boolean isBottomBarVisible = true;
-    private boolean isPlaying          = false;
-
-    private LibraryDao libraryDao;
-
+    // UI
     private View topBar;
     private View bottomBar;
     private ImageView btnTtsPlay;
     private ViewPager2 viewPager;
 
+    private boolean isTopBarVisible = true;
+    private boolean isBottomBarVisible = true;
+
+    // 데이터
+    private LibraryDao libraryDao;
+    private List<Page> dbPages = new ArrayList<>();
+
+    private UserSetting currentUserSetting;
+    private int currentUserId = -1;
+    private int userFontColor = 0xFF000000;
+    private String fullText = "";
+
+    private final List<Integer> viewerToDb = new ArrayList<>();
+    private final List<Integer> pageStartIndex = new ArrayList<>();
+    private PageAdapter pageAdapter = null;
+
+    // TTS 상태
+    private int currentDbIdx = 0;
+    private int currentViewerIdx = 0;
+    private boolean isPlaying = false;
+
     private TextToSpeech androidTts;
     private boolean isAndroidTtsReady = false;
-
     private MediaPlayer mediaPlayer;
 
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-
-    // 책 전체 페이지의 valence/arousal 평균값
     private float avgValence = 0f;
     private float avgArousal = 0f;
 
     private ApiService apiService;
-
-    // 사용자 뷰 설정
-    float userFontSize    = 20f;
-    float userLineSpacing = 1.5f;
-    int   userFontColor   = 0xFF000000;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private static class WordToken {
         final String word;
@@ -98,17 +106,8 @@ public class ViewerActivity extends AppCompatActivity {
         }
     }
 
-    private  List<WordToken> wordTokens = new ArrayList<>();
-    private List<Integer> pageStartIndex = new ArrayList<>();
-    private List<Page> dbPages = new ArrayList<>();
+    private List<WordToken> wordTokens = new ArrayList<>();
     private int currentWordIdx = 0;
-    private PageAdapter pageAdapter = null;
-    private String fullText = "";
-
-    private final Handler mainHandelr = new Handler(Looper.getMainLooper());
-    private UserSetting currentUserSetting;
-    private int UserFontColor = 0xFF000000;
-    private int currentUserId = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -126,34 +125,47 @@ public class ViewerActivity extends AppCompatActivity {
             currentUserSetting = new UserSetting(currentUserId);
         }
 
-        viewPager  = findViewById(R.id.view_pager);
+        viewPager = findViewById(R.id.view_pager);
         viewPager.setBackgroundColor(Color.parseColor(currentUserSetting.backgroundColor));
 
         switch (currentUserSetting.backgroundColor) {
-            case "#F5F5F5": userFontColor = Color.parseColor("#333333"); break;
-            case "#E0E0E0": userFontColor = Color.parseColor("#000000"); break;
-            case "#424242": userFontColor = Color.parseColor("#E0E0E0"); break;
-            case "#000000": userFontColor = Color.parseColor("#FFFFFF"); break;
-            case "#F6F1E5": userFontColor = Color.parseColor("#4E3726"); break;
-            case "#233E3B": userFontColor = Color.parseColor("#BDD9B9"); break;
-            default: userFontColor = Color.BLACK; break;
+            case "#F5F5F5":
+                userFontColor = Color.parseColor("#333333");
+                break;
+            case "#E0E0E0":
+                userFontColor = Color.parseColor("#000000");
+                break;
+            case "#424242":
+                userFontColor = Color.parseColor("#E0E0E0");
+                break;
+            case "#000000":
+                userFontColor = Color.parseColor("#FFFFFF");
+                break;
+            case "#F6F1E5":
+                userFontColor = Color.parseColor("#4E3726");
+                break;
+            case "#233E3B":
+                userFontColor = Color.parseColor("#BDD9B9");
+                break;
+            default:
+                userFontColor = Color.BLACK;
+                break;
         }
 
-        topBar     = findViewById(R.id.top_bar);
-        bottomBar  = findViewById(R.id.bottom_bar);
+        topBar = findViewById(R.id.top_bar);
+        bottomBar = findViewById(R.id.bottom_bar);
         btnTtsPlay = findViewById(R.id.btn_tts_play);
-        TextView tvBack      = findViewById(R.id.tv_back);
+        TextView tvBack = findViewById(R.id.tv_back);
         TextView tvBookTitle = findViewById(R.id.tv_viewer_title);
 
         tvBack.setOnClickListener(v -> finish());
 
         // 데이터 받기
-        int bookId      = getIntent().getIntExtra("BOOK_ID", -1);
+        int bookId = getIntent().getIntExtra("BOOK_ID", -1);
         String bookName = getIntent().getStringExtra("BOOK_NAME");
         if (bookName != null) tvBookTitle.setText(bookName);
 
         // DB에서 페이지 목록 로드
-        List<Page> dbPages = new ArrayList<>();
         if (bookId != -1) {
             dbPages = libraryDao.getPagesForBook(bookId);
         }
@@ -202,25 +214,14 @@ public class ViewerActivity extends AppCompatActivity {
 
                 // 읽기 완료 시 버튼 재생 아이콘으로 복귀
                 androidTts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                    @Override public void onStart(String id) {}
+                    @Override
+                    public void onStart(String id) {
+                    }
 
                     @Override
                     public void onDone(String id) {
                         if (!isPlaying) return;
-
-                        currentWordIdx++;
-                        if (pageAdapter != null && currentWordIdx < pageAdapter.getPageCount()) {
-                            mainHandelr.post(() -> {
-                                viewPager.setCurrentItem(currentWordIdx, true);
-                                speakNextWord();
-                            });
-                        } else {
-                            mainHandelr.post(() -> {
-                                setPlayingState(false);
-                                currentWordIdx = 0;
-                                if (pageAdapter != null) pageAdapter.clearHighlight();
-                            });
-                        }
+                        mainHandler.post(() -> advanceToNextDbPage());
                     }
 
                     @Override
@@ -230,7 +231,7 @@ public class ViewerActivity extends AppCompatActivity {
 
                     @Override
                     public void onRangeStart(String utteranceId, int start, int end, int frame) {
-                        mainHandelr.post(() -> {
+                        mainHandler.post(() -> {
                             if (pageAdapter != null && isPlaying) {
                                 pageAdapter.setHighlight(currentWordIdx, start, end);
                             }
@@ -247,6 +248,10 @@ public class ViewerActivity extends AppCompatActivity {
                 .connectTimeout(120, TimeUnit.SECONDS)
                 .readTimeout(300, TimeUnit.SECONDS)
                 .writeTimeout(120, TimeUnit.SECONDS)
+                .addInterceptor(chain -> chain.proceed(
+                        chain.request().newBuilder()
+                                .addHeader("ngrok-skip-browser-warning", "true")
+                                .build()))
                 .build();
         apiService = new Retrofit.Builder()
                 .baseUrl("https://egal-furcately-nydia.ngrok-free.dev/")
@@ -260,8 +265,11 @@ public class ViewerActivity extends AppCompatActivity {
             if (isPlaying) {
                 stopPlayback();
             } else {
+                // 현재 화면 페이지에서 재생 시작
+                currentViewerIdx = viewPager.getCurrentItem();
+                currentDbIdx = viewerToDb.isEmpty() ? 0 : viewerToDb.get(Math.min(currentViewerIdx, viewerToDb.size() - 1));
                 setPlayingState(true);
-                speakNextPage();
+                speakCurrentDbPage();
             }
         });
 
@@ -270,9 +278,311 @@ public class ViewerActivity extends AppCompatActivity {
         // ────────────────────────────────────────────────────────────────────
     }
 
+    private void speakCurrentDbPage() {
+        if (!isPlaying) return;
+        if (currentDbIdx >= dbPages.size()) {
+            // 모든 DB 페이지 재생 완료
+            setPlayingState(false);
+            currentDbIdx     = 0;
+            currentViewerIdx = 0;
+            if (pageAdapter != null) pageAdapter.clearHighlight();
+            return;
+        }
+
+        Page page = dbPages.get(currentDbIdx);
+
+        // 이 DB 페이지에 해당하는 첫 번째 앱 화면 페이지로 이동
+        int targetViewerIdx = getFirstViewerIdxForDbIdx(currentDbIdx);
+        if (targetViewerIdx >= 0 && targetViewerIdx != viewPager.getCurrentItem()) {
+            currentViewerIdx = targetViewerIdx;
+            viewPager.setCurrentItem(targetViewerIdx, true);
+        }
+
+        Log.d(TAG, "재생 DB페이지[" + currentDbIdx + "] audioPath=" + page.audioFilePath
+                + " label=" + page.emotionLabel);
+
+        // 경로 1: 로컬 파일
+        if (page.audioFilePath != null && new File(page.audioFilePath).exists()) {
+            playLocalAudio(page.audioFilePath);
+            return;
+        }
+
+        // 경로 2: 서버 실시간 요청
+        if (page.emotionLabel != null && !page.emotionLabel.isEmpty()) {
+            // DB 페이지 전체 텍스트를 TTS 요청
+            String text = page.extractedText != null ? page.extractedText : "";
+            requestTtsFromServer(page, text);
+            return;
+        }
+
+        // 경로 3: Android TTS 폴백
+        String text = page.extractedText != null ? page.extractedText : "";
+        speakWithAndroidTts(text);
+    }
+
+    private void advanceToNextDbPage() {
+        if (!isPlaying) return;
+        currentDbIdx++;
+        speakCurrentDbPage();
+    }
+
+    private void playLocalAudio(String filePath) {
+        try {
+            releaseMediaPlayer();
+            mediaPlayer = new MediaPlayer();
+            mediaPlayer.setDataSource(filePath);
+            mediaPlayer.prepare();
+            mediaPlayer.setOnCompletionListener(mp ->
+                    mainHandler.post(this::advanceToNextDbPage));
+            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                Log.e(TAG, "MediaPlayer 오류: what=" + what);
+                // 파일 오류 → 폴백
+                Page page = currentDbIdx < dbPages.size() ? dbPages.get(currentDbIdx) : null;
+                if (page != null) {
+                    mainHandler.post(() -> speakWithAndroidTts(
+                            page.extractedText != null ? page.extractedText : ""));
+                }
+                return true;
+            });
+            mediaPlayer.start();
+            Log.d(TAG, "로컬 재생: " + new File(filePath).getName());
+        } catch (Exception e) {
+            Log.e(TAG, "로컬 재생 실패: " + e.getMessage());
+            Page page = currentDbIdx < dbPages.size() ? dbPages.get(currentDbIdx) : null;
+            if (page != null) speakWithAndroidTts(
+                    page.extractedText != null ? page.extractedText : "");
+        }
+    }
+
+    private void requestTtsFromServer(Page page, String text) {
+        String instruction = buildFallbackInstruction(page.emotionLabel);
+        TtsRequest req = new TtsRequest(text, instruction, page.pageId);
+
+        apiService.generateTts(req).enqueue(new Callback<TtsResponse>() {
+            @Override
+            public void onResponse(@NonNull Call<TtsResponse> call,
+                                   @NonNull Response<TtsResponse> response) {
+                if (!isPlaying) return;
+
+                if (response.isSuccessful()
+                        && response.body() != null
+                        && response.body().audio_base64 != null) {
+
+                    byte[] audioBytes = Base64.decode(
+                            response.body().audio_base64, Base64.DEFAULT);
+
+                    ExecutorService executor = Executors.newSingleThreadExecutor();
+                    executor.execute(() -> {
+                        try {
+                            // filesDir 에 캐싱 후 DB 업데이트
+                            File audioFile = new File(getFilesDir(),
+                                    "tts_book" + page.bookId + "_page" + page.pageNumber + ".wav");
+                            try (FileOutputStream fos = new FileOutputStream(audioFile)) {
+                                fos.write(audioBytes);
+                            }
+                            AppDatabase.getInstance(ViewerActivity.this)
+                                    .libraryDao()
+                                    .updateAudioFilePath(page.pageId, audioFile.getAbsolutePath());
+                            // 인메모리 dbPages 도 즉시 갱신
+                            page.audioFilePath = audioFile.getAbsolutePath();
+
+                            mainHandler.post(() -> playLocalAudio(audioFile.getAbsolutePath()));
+                        } catch (Exception e) {
+                            Log.e(TAG, "TTS 캐싱 실패: " + e.getMessage());
+                            mainHandler.post(() -> speakWithAndroidTts(text));
+                        }
+                    });
+                } else {
+                    mainHandler.post(() -> speakWithAndroidTts(text));
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<TtsResponse> call, @NonNull Throwable t) {
+                Log.e(TAG, "TTS 서버 요청 실패: " + t.getMessage());
+                mainHandler.post(() -> speakWithAndroidTts(text));
+            }
+        });
+    }
+
+    private void speakWithAndroidTts(String text) {
+        if (!isAndroidTtsReady || androidTts == null || text.isEmpty()) return;
+
+        float arousalRange = (1.6f - 0.6f) / 2f;
+        float speechRate   = 1.0f + (avgArousal * arousalRange);
+        if (avgValence < -0.5f) speechRate -= (-avgValence - 0.5f) * 0.3f;
+        speechRate = Math.max(0.6f, Math.min(1.6f, speechRate));
+
+        float pitchRange = (1.4f - 0.7f) / 2f;
+        float pitch      = 1.0f + (avgValence * pitchRange);
+        if (avgArousal > 0.5f && avgValence > 0f) pitch += avgArousal * 0.1f;
+        pitch = Math.max(0.7f, Math.min(1.4f, pitch));
+
+        androidTts.setSpeechRate(speechRate);
+        androidTts.setPitch(pitch);
+        androidTts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "db_" + currentDbIdx);
+    }
+
+    private void stopPlayback() {
+        setPlayingState(false);
+        releaseMediaPlayer();
+        if (androidTts != null) androidTts.stop();
+        if (pageAdapter != null) pageAdapter.clearHighlight();
+    }
+
+    private void releaseMediaPlayer() {
+        if (mediaPlayer != null) {
+            try {
+                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
+                mediaPlayer.release();
+            } catch (Exception ignored) {}
+            mediaPlayer = null;
+        }
+    }
+
+    private void setPlayingState(boolean playing) {
+        isPlaying = playing;
+        btnTtsPlay.setImageResource(
+                playing ? android.R.drawable.ic_media_pause
+                        : android.R.drawable.ic_media_play);
+    }
+
+    private int getFirstViewerIdxForDbIdx(int dbIdx) {
+        for (int i = 0; i < viewerToDb.size(); i++) {
+            if (viewerToDb.get(i) == dbIdx) return i;
+        }
+        return 0;
+    }
+
+    private String buildFallbackInstruction(String label) {
+        if (label == null || label.isEmpty())
+            return "Read naturally and calmly.";
+        return "Read with the emotion of " + label + ".";
+    }
+
+    private void paginateTextAndSetAdapter(String text, int fontColor) {
+        TextPaint paint = new TextPaint();
+        paint.setTextSize(TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP, currentUserSetting.fontSize,
+                getResources().getDisplayMetrics()));
+        paint.setColor(fontColor);
+        paint.setAntiAlias(true);
+        paint.setLetterSpacing(currentUserSetting.letterSpacing);
+
+        Typeface baseFace = Typeface.DEFAULT;
+        try {
+            if ("RIDIBATANG".equals(currentUserSetting.fontFamily))
+                baseFace = ResourcesCompat.getFont(this, R.font.ridibatang);
+            else if ("KOPUB_BATANG".equals(currentUserSetting.fontFamily))
+                baseFace = ResourcesCompat.getFont(this, R.font.kopub_batang);
+            else if ("NANUM_BARUN".equals(currentUserSetting.fontFamily))
+                baseFace = ResourcesCompat.getFont(this, R.font.nanum_barun_gothic);
+            else if ("NANUM_ROUND".equals(currentUserSetting.fontFamily))
+                baseFace = ResourcesCompat.getFont(this, R.font.nanum_square_round);
+            else if ("MARU".equals(currentUserSetting.fontFamily))
+                baseFace = ResourcesCompat.getFont(this, R.font.maruburi);
+        } catch (Exception e) { e.printStackTrace(); }
+
+        paint.setTypeface(Typeface.create(baseFace,
+                currentUserSetting.isBold ? Typeface.BOLD : Typeface.NORMAL));
+
+        int padding = (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, 24f, getResources().getDisplayMetrics());
+        int availableWidth  = viewPager.getWidth()  - (padding * 2);
+        int availableHeight = viewPager.getHeight() - (padding * 2);
+
+        StaticLayout layout = StaticLayout.Builder
+                .obtain(text, 0, text.length(), paint, availableWidth)
+                .setLineSpacing(0, currentUserSetting.lineSpacing)
+                .build();
+
+        List<String> pages = new ArrayList<>();
+        pageStartIndex.clear();
+        viewerToDb.clear();
+
+        // DB 페이지별 시작 오프셋 미리 계산
+        // dbPageOffsets.get(i) = i번 DB 페이지가 fullText 에서 시작하는 오프셋
+        List<Integer> dbPageOffsets = new ArrayList<>();
+        int acc = 0;
+        for (Page p : dbPages) {
+            dbPageOffsets.add(acc);
+            acc += (p.extractedText != null ? p.extractedText.length() : 0) + 2; // +2 = "\n\n"
+        }
+
+        int lineCount   = layout.getLineCount();
+        int currentLine = 0;
+
+        while (currentLine < lineCount) {
+            int startLine  = currentLine;
+            int pageHeight = 0;
+
+            while (currentLine < lineCount) {
+                int lineH = layout.getLineBottom(currentLine) - layout.getLineTop(currentLine);
+                if (pageHeight + lineH > availableHeight) break;
+                pageHeight += lineH;
+                currentLine++;
+            }
+
+            int startOffset = layout.getLineStart(startLine);
+            int endOffset   = layout.getLineEnd(currentLine - 1);
+
+            pageStartIndex.add(startOffset);
+            pages.add(text.substring(startOffset, endOffset));
+
+            // 이 앱 화면 페이지가 몇 번째 DB 페이지에 속하는지 매핑
+            int dbIdx = dbPages.size() - 1; // 기본값: 마지막 DB 페이지
+            for (int d = 0; d < dbPageOffsets.size(); d++) {
+                int nextOffset = (d + 1 < dbPageOffsets.size())
+                        ? dbPageOffsets.get(d + 1) : Integer.MAX_VALUE;
+                if (startOffset >= dbPageOffsets.get(d) && startOffset < nextOffset) {
+                    dbIdx = d;
+                    break;
+                }
+            }
+            viewerToDb.add(dbIdx);
+        }
+
+        pageAdapter = new PageAdapter(pages, currentUserSetting, fontColor, this::toggleBars);
+        viewPager.setAdapter(pageAdapter);
+
+        Log.d(TAG, "페이지 분할 완료: 앱화면=" + pages.size() + "페이지, DB=" + dbPages.size() + "페이지");
+        for (int i = 0; i < viewerToDb.size(); i++) {
+            Log.d(TAG, "  앱화면[" + i + "] → DB[" + viewerToDb.get(i) + "]");
+        }
+    }
+
+    private void toggleBars() {
+        if (isTopBarVisible) {
+            topBar.animate().translationY(-topBar.getHeight()).alpha(0f).setDuration(200)
+                    .withEndAction(() -> topBar.setVisibility(View.GONE));
+            bottomBar.animate().translationY(bottomBar.getHeight()).alpha(0f).setDuration(200)
+                    .withEndAction(() -> bottomBar.setVisibility(View.GONE));
+            isTopBarVisible = isBottomBarVisible = false;
+        } else {
+            topBar.setVisibility(View.VISIBLE);
+            topBar.animate().translationY(0).alpha(1f).setDuration(200);
+            bottomBar.setVisibility(View.VISIBLE);
+            bottomBar.animate().translationY(0).alpha(1f).setDuration(200);
+            isTopBarVisible = isBottomBarVisible = true;
+        }
+    }
+
     private void speakNextPage() {
         if (!isPlaying || pageAdapter == null) return;
         if (currentWordIdx >= pageAdapter.getPageCount()) return;
+
+        Page currentPage = getDbPageForViewerIndex(currentWordIdx);
+        if (currentPage != null) {
+            Log.d("TTS_PATH", "=== 페이지 " + currentWordIdx + " ===");
+            Log.d("TTS_PATH", "audioFilePath: " + currentPage.audioFilePath);
+            Log.d("TTS_PATH", "emotionLabel: " + currentPage.emotionLabel);
+            if (currentPage.audioFilePath != null) {
+                File f = new File(currentPage.audioFilePath);
+                Log.d("TTS_PATH", "파일 존재: " + f.exists() + " / 크기: " + f.length() + "bytes");
+            }
+        } else {
+            Log.d("TTS_PATH", "currentPage == null (DB 매핑 실패)");
+        }
 
         String pageText = pageAdapter.getPageText(currentWordIdx);
         if (pageText == null || pageText.isEmpty()) {
@@ -281,7 +591,7 @@ public class ViewerActivity extends AppCompatActivity {
         }
 
         // 현재 화면 페이지 인덱스를 DB 페이지와 매핑
-        Page currentPage = getDbPageForViewerIndex(currentWordIdx);
+        // Page currentPage = getDbPageForViewerIndex(currentWordIdx);
 
         // ── 경로 1: 로컬 파일 재생 ──────────────────────────────
         if (currentPage != null
@@ -305,104 +615,6 @@ public class ViewerActivity extends AppCompatActivity {
         speakWithAndroidTts(pageText);
     }
 
-    private void playLocalAudio(String filePath) {
-        try {
-            releaseMediaPlayer();
-            mediaPlayer = new MediaPlayer();
-            mediaPlayer.setDataSource(filePath);
-            mediaPlayer.prepare();
-            mediaPlayer.setOnCompletionListener(mp -> mainHandler.post(this::advanceToNextPage));
-            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
-                Log.e(TAG, "MediaPlayer 오류: what=" + what);
-                mainHandler.post(() -> speakWithAndroidTts(
-                        pageAdapter != null ? pageAdapter.getPageText(currentWordIdx) : ""));
-                return true;
-            });
-            mediaPlayer.start();
-            Log.d(TAG, "로컬 재생: " + new File(filePath).getName());
-        } catch (Exception e) {
-            Log.e(TAG, "로컬 재생 실패: " + e.getMessage());
-            // 파일 깨짐 → 실시간 요청으로 강등
-            Page p = getDbPageForViewerIndex(currentWordIdx);
-            if (p != null && p.extractedText != null) requestTtsFromServer(p, p.extractedText);
-            else speakWithAndroidTts(pageAdapter != null ? pageAdapter.getPageText(currentWordIdx) : "");
-        }
-    }
-
-    private void requestTtsFromServer(Page page, String pageText) {
-        // tts_instruction 이 DB 에 없으면 감정 레이블로 기본 지시문 생성
-        String instruction = buildFallbackInstruction(page.emotionLabel);
-
-        TtsRequest req = new TtsRequest(pageText, instruction, page.pageId);
-        apiService.generateTts(req).enqueue(new Callback<TtsResponse>() {
-            @Override
-            public void onResponse(@NonNull Call<TtsResponse> call,
-                                   @NonNull Response<TtsResponse> response) {
-                if (!isPlaying) return;
-
-                if (response.isSuccessful()
-                        && response.body() != null
-                        && response.body().audio_base64 != null) {
-
-                    byte[] audioBytes = Base64.decode(response.body().audio_base64, Base64.DEFAULT);
-
-                    // 받은 오디오를 filesDir 에 캐싱하고 DB 업데이트
-                    ExecutorService executor = Executors.newSingleThreadExecutor();
-                    executor.execute(() -> {
-                        try {
-                            File audioFile = new File(
-                                    getFilesDir(),
-                                    "tts_book" + page.bookId + "_page" + page.pageNumber + ".wav"
-                            );
-                            try (FileOutputStream fos = new FileOutputStream(audioFile)) {
-                                fos.write(audioBytes);
-                            }
-                            AppDatabase.getInstance(ViewerActivity.this)
-                                    .libraryDao()
-                                    .updateAudioFilePath(page.pageId, audioFile.getAbsolutePath());
-
-                            // 파일 저장 완료 후 재생
-                            mainHandler.post(() -> playLocalAudio(audioFile.getAbsolutePath()));
-
-                        } catch (Exception e) {
-                            Log.e(TAG, "TTS 캐싱 실패: " + e.getMessage());
-                            mainHandler.post(() -> speakWithAndroidTts(pageText));
-                        }
-                    });
-
-                } else {
-                    // 서버 오류 → Android TTS 로 폴백
-                    mainHandler.post(() -> speakWithAndroidTts(pageText));
-                }
-            }
-
-            @Override
-            public void onFailure(@NonNull Call<TtsResponse> call, @NonNull Throwable t) {
-                Log.e(TAG, "TTS 서버 요청 실패: " + t.getMessage());
-                mainHandler.post(() -> speakWithAndroidTts(pageText));
-            }
-        });
-    }
-
-    private void speakWithAndroidTts(String text) {
-        if (!isAndroidTtsReady || androidTts == null || text.isEmpty()) return;
-
-        // 기존 EmotionTtsHelper 로직 인라인 적용
-        float arousalRange = (1.6f - 0.6f) / 2f;
-        float speechRate   = 1.0f + (avgArousal * arousalRange);
-        if (avgValence < -0.5f) speechRate -= (-avgValence - 0.5f) * 0.3f;
-        speechRate = Math.max(0.6f, Math.min(1.6f, speechRate));
-
-        float pitchRange = (1.4f - 0.7f) / 2f;
-        float pitch      = 1.0f + (avgValence * pitchRange);
-        if (avgArousal > 0.5f && avgValence > 0f) pitch += avgArousal * 0.1f;
-        pitch = Math.max(0.7f, Math.min(1.4f, pitch));
-
-        androidTts.setSpeechRate(speechRate);
-        androidTts.setPitch(pitch);
-        androidTts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "page_" + currentWordIdx);
-    }
-
     private void advanceToNextPage() {
         if (!isPlaying) return;
         currentWordIdx++;
@@ -416,22 +628,6 @@ public class ViewerActivity extends AppCompatActivity {
         }
     }
 
-    private void stopPlayback() {
-        setPlayingState(false);
-        releaseMediaPlayer();
-        if (androidTts != null) androidTts.stop();
-        if (pageAdapter != null) pageAdapter.clearHighlight();
-    }
-
-    private void releaseMediaPlayer() {
-        if (mediaPlayer != null) {
-            try {
-                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
-                mediaPlayer.release();
-            } catch (Exception ignored) {}
-            mediaPlayer = null;
-        }
-    }
 
     private void buildWordTokens(String text) {
         wordTokens.clear();
@@ -476,107 +672,6 @@ public class ViewerActivity extends AppCompatActivity {
         return page;
     }
 
-    /** isPlaying 상태에 따라 버튼 아이콘 변경 */
-    private void setPlayingState(boolean playing) {
-        isPlaying = playing;
-        btnTtsPlay.setImageResource(
-                playing ? android.R.drawable.ic_media_pause
-                        : android.R.drawable.ic_media_play
-        );
-    }
-
-    /** 화면 터치 시 상단·하단 바 함께 토글 */
-    private void toggleBars() {
-        if (isTopBarVisible) {
-            // 숨기기
-            topBar.animate()
-                    .translationY(-topBar.getHeight())
-                    .alpha(0f).setDuration(200)
-                    .withEndAction(() -> topBar.setVisibility(View.GONE));
-            bottomBar.animate()
-                    .translationY(bottomBar.getHeight())
-                    .alpha(0f).setDuration(200)
-                    .withEndAction(() -> bottomBar.setVisibility(View.GONE));
-            isTopBarVisible    = false;
-            isBottomBarVisible = false;
-        } else {
-            // 보이기
-            topBar.setVisibility(View.VISIBLE);
-            topBar.animate().translationY(0).alpha(1f).setDuration(200);
-            bottomBar.setVisibility(View.VISIBLE);
-            bottomBar.animate().translationY(0).alpha(1f).setDuration(200);
-            isTopBarVisible    = true;
-            isBottomBarVisible = true;
-        }
-    }
-
-    private void paginateTextAndSetAdapter(String fullText, int fontColor) {
-        TextPaint paint = new TextPaint();
-
-        paint.setTextSize(TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_SP, currentUserSetting.fontSize, getResources().getDisplayMetrics()));
-        paint.setColor(fontColor);
-        paint.setAntiAlias(true);
-
-        paint.setLetterSpacing(currentUserSetting.letterSpacing);
-
-        Typeface baseFace = Typeface.DEFAULT;
-        try {
-            if ("RIDIBATANG".equals(currentUserSetting.fontFamily)) baseFace = ResourcesCompat.getFont(this, R.font.ridibatang);
-            else if ("KOPUB_BATANG".equals(currentUserSetting.fontFamily)) baseFace = ResourcesCompat.getFont(this, R.font.kopub_batang);
-            else if ("NANUM_BARUN".equals(currentUserSetting.fontFamily)) baseFace = ResourcesCompat.getFont(this, R.font.nanum_barun_gothic);
-            else if ("NANUM_ROUND".equals(currentUserSetting.fontFamily)) baseFace = ResourcesCompat.getFont(this, R.font.nanum_square_round);
-            else if ("MARU".equals(currentUserSetting.fontFamily)) baseFace = ResourcesCompat.getFont(this, R.font.maruburi);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        if (currentUserSetting.isBold) {
-            paint.setTypeface(Typeface.create(baseFace, Typeface.BOLD));
-        } else {
-            paint.setTypeface(Typeface.create(baseFace, Typeface.NORMAL));
-        }
-
-        int padding = (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, 24f, getResources().getDisplayMetrics());
-        int availableWidth  = viewPager.getWidth()  - (padding * 2);
-        int availableHeight = viewPager.getHeight() - (padding * 2);
-
-        StaticLayout layout = StaticLayout.Builder
-                .obtain(fullText, 0, fullText.length(), paint, availableWidth)
-                .setLineSpacing(0, currentUserSetting.lineSpacing)
-                .build();
-
-        List<String> paginatedStrings = new ArrayList<>();
-        pageStartIndex.clear();
-
-        int lineCount   = layout.getLineCount();
-        int currentLine = 0;
-
-        while (currentLine < lineCount) {
-            int startLine  = currentLine;
-            int pageHeight = 0;
-
-            while (currentLine < lineCount) {
-                int lineHeight = layout.getLineBottom(currentLine) - layout.getLineTop(currentLine);
-                if (pageHeight + lineHeight > availableHeight) break;
-                pageHeight += lineHeight;
-                currentLine++;
-            }
-
-            int startOffset = layout.getLineStart(startLine);
-            int endOffset   = layout.getLineEnd(currentLine - 1);
-
-            pageStartIndex.add(startOffset);
-            paginatedStrings.add(fullText.substring(startOffset, endOffset));
-        }
-
-        // toggleBars 로 변경
-        pageAdapter = new PageAdapter(
-                paginatedStrings, currentUserSetting, fontColor, this::toggleBars);
-        viewPager.setAdapter(pageAdapter);
-    }
-
     private Page getDbPageForViewerIndex(int viewerIdx) {
         if (dbPages.isEmpty() || pageAdapter == null) return null;
         // pageAdapter 의 페이지 텍스트 시작 오프셋으로 DB 페이지 역추적
@@ -588,11 +683,6 @@ public class ViewerActivity extends AppCompatActivity {
             if (charCount > globalOffset) return p;
         }
         return dbPages.get(dbPages.size() - 1);
-    }
-
-    private String buildFallbackInstruction(String label) {
-        if (label == null || label.isEmpty()) return "자연스럽고 차분한 목소리로 읽어주세요.";
-        return label + "의 감정이 담긴 목소리로 읽어주세요.";
     }
 
     @Override
