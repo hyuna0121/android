@@ -15,7 +15,7 @@ import com.example.hbook.model.ReaderLog;
 import com.example.hbook.model.User;
 import com.example.hbook.model.UserSetting;
 
-@Database(entities = {Book.class, Page.class, ReaderLog.class, User.class, UserSetting.class}, version = 8)
+@Database(entities = {Book.class, Page.class, ReaderLog.class, User.class, UserSetting.class}, version = 9)
 public abstract class AppDatabase extends RoomDatabase {
     public abstract LibraryDao libraryDao();
     public abstract UserDao userDao();
@@ -34,12 +34,21 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    static final Migration MIGRATION_8_9 = new Migration(8, 9) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL(
+                    "ALTER TABLE user_settings ADD COLUMN tts_voice TEXT DEFAULT 'Cherry'"
+            );
+        }
+    };
+
     public static AppDatabase getInstance(Context context) {
         if (INSTANCE == null) {
             INSTANCE = Room.databaseBuilder(context.getApplicationContext(),
                     AppDatabase.class, "my_ocr_library.db")
                     .allowMainThreadQueries()
-                    .addMigrations(MIGRATION_7_8)
+                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9)
                     .fallbackToDestructiveMigration()   // 버전 바뀔 시 기존 DB 포맷하고 새 구조로 덮음
                     .build();
         }

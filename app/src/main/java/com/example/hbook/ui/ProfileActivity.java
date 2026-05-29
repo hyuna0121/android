@@ -10,6 +10,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -20,11 +22,14 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.example.hbook.R;
+import com.example.hbook.data.AppDatabase;
+import com.example.hbook.model.UserSetting;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 public class ProfileActivity extends AppCompatActivity {
 
     private int currentUserId = -1;
+    private TextView tvCurrentVoice;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,24 +39,28 @@ public class ProfileActivity extends AppCompatActivity {
         SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
         currentUserId = prefs.getInt("logged_in_user_id", -1);
 
-        Button btnViewerSettings = findViewById(R.id.btn_viewer_settings);
+        LinearLayout btnViewerSettings = findViewById(R.id.btn_viewer_settings);
         btnViewerSettings.setOnClickListener(v -> {
-            Intent intent = new Intent(ProfileActivity.this, ViewerSettingActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(this, ViewerSettingActivity.class));
         });
 
-        Button btnLogout = findViewById(R.id.btn_logout);
+        LinearLayout btnTtsVoice = findViewById(R.id.btn_tts_voice);
+        btnTtsVoice.setOnClickListener(v -> {
+            startActivity(new Intent(this, TtsVoiceActivity.class));
+        });
+
+        LinearLayout btnLogout = findViewById(R.id.btn_logout);
         btnLogout.setOnClickListener(v -> {
             SharedPreferences.Editor editor = prefs.edit();
             editor.clear();
             editor.apply();
-
             Toast.makeText(this, "로그아웃 되었습니다.", Toast.LENGTH_SHORT).show();
-
-            Intent intent = new Intent(ProfileActivity.this, LoginActivity.class);
+            Intent intent = new Intent(this, LoginActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
         });
+
+        tvCurrentVoice = findViewById(R.id.tv_current_voice);
 
         ImageView ivHome = findViewById(R.id.iv_home);
         ivHome.setOnClickListener(v -> {
@@ -63,6 +72,17 @@ public class ProfileActivity extends AppCompatActivity {
 
         FloatingActionButton fabAdd = findViewById(R.id.fab_add);
         fabAdd.setOnClickListener(v -> showNameInputDialog());
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // TtsVoiceActivity 에서 돌아왔을 때 현재 음성 표시 갱신
+        UserSetting setting = AppDatabase.getInstance(this)
+                .userDao().getUserSetting(currentUserId);
+        if (setting != null && tvCurrentVoice != null) {
+            tvCurrentVoice.setText(setting.ttsVoice != null ? setting.ttsVoice : "Cherry");
+        }
     }
 
     private void showNameInputDialog() {

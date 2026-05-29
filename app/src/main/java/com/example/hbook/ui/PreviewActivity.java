@@ -95,7 +95,7 @@ public class PreviewActivity extends AppCompatActivity {
                 .build();
 
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("https://egal-furcately-nydia.ngrok-free.dev/")
+                .baseUrl("https://perish-impure-hatred.ngrok-free.dev/")
                 .client(client)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();

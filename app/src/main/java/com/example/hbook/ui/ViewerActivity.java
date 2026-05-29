@@ -254,7 +254,7 @@ public class ViewerActivity extends AppCompatActivity {
                                 .build()))
                 .build();
         apiService = new Retrofit.Builder()
-                .baseUrl("https://egal-furcately-nydia.ngrok-free.dev/")
+                .baseUrl("https://perish-impure-hatred.ngrok-free.dev/")
                 .client(client)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
@@ -298,12 +298,19 @@ public class ViewerActivity extends AppCompatActivity {
             viewPager.setCurrentItem(targetViewerIdx, true);
         }
 
-        Log.d(TAG, "재생 DB페이지[" + currentDbIdx + "] audioPath=" + page.audioFilePath
-                + " label=" + page.emotionLabel);
+        String voice = (currentUserSetting != null && currentUserSetting.ttsVoice != null)
+                ? currentUserSetting.ttsVoice : "Cherry";
+        String expectedPath = getFilesDir().getAbsolutePath()
+                + "/tts_book" + page.bookId
+                + "_page" + page.pageNumber
+                + "_" + voice + ".wav";
+
+        Log.d(TAG, "재생 DB페이지[" + currentDbIdx + "] voice=" + voice
+                + " expectedPath=" + expectedPath + " label=" + page.emotionLabel);
 
         // 경로 1: 로컬 파일
-        if (page.audioFilePath != null && new File(page.audioFilePath).exists()) {
-            playLocalAudio(page.audioFilePath);
+        if (new File(expectedPath).exists()) {
+            playLocalAudio(expectedPath);
             return;
         }
 
@@ -356,7 +363,8 @@ public class ViewerActivity extends AppCompatActivity {
 
     private void requestTtsFromServer(Page page, String text) {
         String instruction = buildFallbackInstruction(page.emotionLabel);
-        TtsRequest req = new TtsRequest(text, instruction, page.pageId);
+        TtsRequest req = new TtsRequest(text, instruction, page.pageId,
+                currentUserSetting != null ? currentUserSetting.ttsVoice : "Cherry");
 
         apiService.generateTts(req).enqueue(new Callback<TtsResponse>() {
             @Override
@@ -374,9 +382,10 @@ public class ViewerActivity extends AppCompatActivity {
                     ExecutorService executor = Executors.newSingleThreadExecutor();
                     executor.execute(() -> {
                         try {
-                            // filesDir 에 캐싱 후 DB 업데이트
+                            String voice = (currentUserSetting != null && currentUserSetting.ttsVoice != null)
+                                    ? currentUserSetting.ttsVoice : "Cherry";
                             File audioFile = new File(getFilesDir(),
-                                    "tts_book" + page.bookId + "_page" + page.pageNumber + ".wav");
+                                    "tts_book" + page.bookId + "_page" + page.pageNumber + "_" + voice + ".wav");
                             try (FileOutputStream fos = new FileOutputStream(audioFile)) {
                                 fos.write(audioBytes);
                             }

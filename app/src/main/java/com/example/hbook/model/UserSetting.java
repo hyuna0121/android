@@ -1,5 +1,6 @@
 package com.example.hbook.model;
 
+import androidx.annotation.Nullable;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.ForeignKey;
@@ -40,6 +41,10 @@ public class UserSetting {
 
     @ColumnInfo(name = "is_bold")
     public boolean isBold;
+
+    @Nullable
+    @ColumnInfo(name = "tts_voice", defaultValue = "Cherry")
+    public String ttsVoice = "Cherry";
 
     public UserSetting(int userId) {
         this.userId = userId;

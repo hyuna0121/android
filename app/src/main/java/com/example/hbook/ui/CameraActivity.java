@@ -36,6 +36,7 @@ import com.example.hbook.model.OcrResponse;
 import com.example.hbook.model.Page;
 import com.example.hbook.model.TtsRequest;
 import com.example.hbook.model.TtsResponse;
+import com.example.hbook.model.UserSetting;
 import com.example.hbook.network.ApiService;
 import com.example.hbook.R;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -73,6 +74,8 @@ public class CameraActivity extends AppCompatActivity {
     private TextView        btnSendMultiple;
     private TextView        btnPreview;
 
+    private UserSetting     currentUserSetting;
+
     // ── 데이터 ───────────────────────────────────────────────────────
     private String bookName;
     private int    currentUserId = -1;
@@ -97,7 +100,7 @@ public class CameraActivity extends AppCompatActivity {
             .build();
 
     private final Retrofit retrofit = new Retrofit.Builder()
-            .baseUrl("https://egal-furcately-nydia.ngrok-free.dev/")
+            .baseUrl("https://perish-impure-hatred.ngrok-free.dev/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build();
@@ -171,6 +174,12 @@ public class CameraActivity extends AppCompatActivity {
         btnPreview           = findViewById(R.id.btn_preview);
 
         if (bookName != null) tvBookTitle.setText(bookName);
+
+        currentUserSetting = AppDatabase.getInstance(this).userDao().getUserSetting(currentUserId);
+
+        if (currentUserSetting == null) {
+            currentUserSetting = new UserSetting(currentUserId);
+        }
 
         if (allPermissionsGranted()) {
             startCamera();
@@ -439,7 +448,8 @@ public class CameraActivity extends AppCompatActivity {
             String instr = instructions.get(i);
             if (page.extractedText == null || page.extractedText.isEmpty()) continue;
 
-            TtsRequest ttsReq = new TtsRequest(page.extractedText, instr, page.pageId);
+            TtsRequest ttsReq = new TtsRequest(page.extractedText, instr, page.pageId,
+                    currentUserSetting != null ? currentUserSetting.ttsVoice : "Cherry");
             try {
                 Response<TtsResponse> ttsResp = apiService.generateTts(ttsReq).execute();
 
@@ -450,8 +460,11 @@ public class CameraActivity extends AppCompatActivity {
                     byte[] audioBytes = Base64.decode(
                             ttsResp.body().audio_base64, Base64.DEFAULT);
 
+                    String voice = (currentUserSetting != null && currentUserSetting.ttsVoice != null)
+                            ? currentUserSetting.ttsVoice : "Cherry";
+
                     File audioFile = new File(getFilesDir(),
-                            "tts_book" + page.bookId + "_page" + page.pageNumber + ".wav");
+                            "tts_book" + page.bookId + "_page" + page.pageNumber + "_" + voice + ".wav");
 
                     try (FileOutputStream fos = new FileOutputStream(audioFile)) {
                         fos.write(audioBytes);
