@@ -4,6 +4,7 @@ import android.graphics.Typeface;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.BackgroundColorSpan;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -110,6 +111,48 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
 
         if (prevPage >=0 && prevPage != page) notifyItemChanged(prevPage);
         if (page >= 0) notifyItemChanged(page);
+    }
+
+    public void setHighlightByText(String chunkText, int currentViewerPage) {
+        if (chunkText == null || chunkText.isEmpty() || pageList == null) return;
+
+        // 공백을 정규화한 뒤 비교 (서버 split 과정에서 공백이 달라질 수 있음)
+        String normalizedChunk = chunkText.trim().replaceAll("\\s+", " ");
+
+        // 1순위: 현재 페이지에서 검색
+        int startPage = Math.max(0, Math.min(currentViewerPage, pageList.size() - 1));
+        String normalizedPage = pageList.get(startPage).replaceAll("\\s+", " ");
+        int idx = normalizedPage.indexOf(normalizedChunk);
+        if (idx >= 0) {
+            setHighlight(startPage, idx, idx + normalizedChunk.length());
+            return;
+        }
+
+        // 2순위: 전체 페이지 순회
+        for (int p = 0; p < pageList.size(); p++) {
+            if (p == startPage) continue; // 이미 위에서 검색함
+            normalizedPage = pageList.get(p).replaceAll("\\s+", " ");
+            idx = normalizedPage.indexOf(normalizedChunk);
+            if (idx >= 0) {
+                setHighlight(p, idx, idx + normalizedChunk.length());
+                return;
+            }
+        }
+
+        // 3순위: 앞 10글자로 부분 매칭 시도 (청크가 페이지 경계에 걸친 경우)
+        String prefix = normalizedChunk.length() > 10
+                ? normalizedChunk.substring(0, 10) : normalizedChunk;
+        for (int p = 0; p < pageList.size(); p++) {
+            normalizedPage = pageList.get(p).replaceAll("\\s+", " ");
+            idx = normalizedPage.indexOf(prefix);
+            if (idx >= 0) {
+                int end = Math.min(idx + normalizedChunk.length(), pageList.get(p).length());
+                setHighlight(p, idx, end);
+                return;
+            }
+        }
+
+        Log.w("PageAdapter", "하이라이트 매칭 실패: [" + normalizedChunk + "]");
     }
 
     public void clearHighlight() {

@@ -30,11 +30,17 @@ import com.example.hbook.R;
 import com.example.hbook.data.AppDatabase;
 import com.example.hbook.data.LibraryDao;
 import com.example.hbook.model.Page;
+import com.example.hbook.model.TimestampEntry;
 import com.example.hbook.model.TtsRequest;
 import com.example.hbook.model.TtsResponse;
 import com.example.hbook.model.UserSetting;
 import com.example.hbook.network.ApiService;
 import com.example.hbook.util.EmotionTtsHelper;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -93,6 +99,11 @@ public class ViewerActivity extends AppCompatActivity {
 
     private ApiService apiService;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    // 하이라이팅
+    private List<TimestampEntry> currentTimestamps = new ArrayList<>();
+    private final Handler  highlightHandler  = new Handler(Looper.getMainLooper());
+    private       Runnable highlightRunnable = null;
 
     private static class WordToken {
         final String word;
@@ -253,10 +264,24 @@ public class ViewerActivity extends AppCompatActivity {
                                 .addHeader("ngrok-skip-browser-warning", "true")
                                 .build()))
                 .build();
+
+        Gson gson = new GsonBuilder()
+                .registerTypeAdapter(
+                        new TypeToken<List<TimestampEntry>>(){}.getType(),
+                        (JsonDeserializer<List<TimestampEntry>>) (json, typeOfT, context) -> {
+                            List<TimestampEntry> list = new ArrayList<>();
+                            for (JsonElement el : json.getAsJsonArray()) {
+                                list.add(context.deserialize(el, TimestampEntry.class));
+                            }
+                            return list;
+                        }
+                )
+                .create();
+
         apiService = new Retrofit.Builder()
                 .baseUrl("https://perish-impure-hatred.ngrok-free.dev/")
                 .client(client)
-                .addConverterFactory(GsonConverterFactory.create())
+                .addConverterFactory(GsonConverterFactory.create(gson))
                 .build()
                 .create(ApiService.class);
 
@@ -310,7 +335,26 @@ public class ViewerActivity extends AppCompatActivity {
 
         // 경로 1: 로컬 파일
         if (new File(expectedPath).exists()) {
-            playLocalAudio(expectedPath);
+            File tsFile = new File(expectedPath.replace(".wav", ".json"));
+            List<TimestampEntry> cachedTs = new ArrayList<>();
+            if (tsFile.exists()) {
+                try {
+                    StringBuilder sb = new StringBuilder();
+                    java.io.BufferedReader reader = new java.io.BufferedReader(
+                            new java.io.InputStreamReader(
+                                    new java.io.FileInputStream(tsFile)));
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        sb.append(line);
+                    }
+                    reader.close();
+                    cachedTs = new Gson().fromJson(sb.toString(),
+                            new TypeToken<List<TimestampEntry>>(){}.getType());
+                } catch (Exception e) {
+                    Log.e(TAG, "timestamps 로드 실패: " + e.getMessage());
+                }
+            }
+            playLocalAudioWithHighlight(expectedPath, cachedTs);
             return;
         }
 
@@ -334,6 +378,9 @@ public class ViewerActivity extends AppCompatActivity {
     }
 
     private void playLocalAudio(String filePath) {
+        stopHighlightPolling();
+        currentTimestamps.clear();
+
         try {
             releaseMediaPlayer();
             mediaPlayer = new MediaPlayer();
@@ -361,6 +408,57 @@ public class ViewerActivity extends AppCompatActivity {
         }
     }
 
+    private void playLocalAudioWithHighlight(String filePath, List<TimestampEntry> timestamps) {
+        currentTimestamps = (timestamps != null) ? timestamps : new ArrayList<>();
+
+        File f = new File(filePath);
+        if (!f.exists() || f.length() == 0) {
+            Log.e(TAG, "재생 실패: 파일 없음 또는 크기 0 → " + filePath);
+            // 500ms 후 재시도 1회
+            mainHandler.postDelayed(() -> playLocalAudioWithHighlight(filePath, currentTimestamps), 300);
+            return;
+        }
+
+        try {
+            releaseMediaPlayer();
+            mediaPlayer = new MediaPlayer();
+            mediaPlayer.setDataSource(filePath);
+            mediaPlayer.prepare();
+            mediaPlayer.setOnCompletionListener(mp -> {
+                mainHandler.post(() -> {
+                    stopHighlightPolling();
+                    if (pageAdapter != null) pageAdapter.clearHighlight();
+                    advanceToNextDbPage();
+                });
+            });
+            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                Log.e(TAG, "MediaPlayer 오류: what=" + what);
+                stopHighlightPolling();
+                Page page = currentDbIdx < dbPages.size() ? dbPages.get(currentDbIdx) : null;
+                if (page != null) {
+                    mainHandler.post(() -> speakWithAndroidTts(
+                            page.extractedText != null ? page.extractedText : ""));
+                }
+                return true;
+            });
+            mediaPlayer.start();
+            Log.d(TAG, "서버 재생 (하이라이팅): " + new File(filePath).getName()
+                    + " / timestamps=" + currentTimestamps.size() + "개");
+
+            // timestamps 가 있을 때만 폴링 시작
+            if (!currentTimestamps.isEmpty()) {
+                startHighlightPolling();
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "서버 재생 실패: " + e.getMessage());
+            stopHighlightPolling();
+            Page page = currentDbIdx < dbPages.size() ? dbPages.get(currentDbIdx) : null;
+            if (page != null) speakWithAndroidTts(
+                    page.extractedText != null ? page.extractedText : "");
+        }
+    }
+
     private void requestTtsFromServer(Page page, String text) {
         String instruction = buildFallbackInstruction(page.emotionLabel);
         TtsRequest req = new TtsRequest(text, instruction, page.pageId,
@@ -378,24 +476,54 @@ public class ViewerActivity extends AppCompatActivity {
 
                     byte[] audioBytes = Base64.decode(
                             response.body().audio_base64, Base64.DEFAULT);
+                    List<TimestampEntry> timestamps = response.body().timestamps;
 
                     ExecutorService executor = Executors.newSingleThreadExecutor();
                     executor.execute(() -> {
                         try {
-                            String voice = (currentUserSetting != null && currentUserSetting.ttsVoice != null)
+                            String voice = (currentUserSetting != null
+                                    && currentUserSetting.ttsVoice != null)
                                     ? currentUserSetting.ttsVoice : "Cherry";
+
                             File audioFile = new File(getFilesDir(),
-                                    "tts_book" + page.bookId + "_page" + page.pageNumber + "_" + voice + ".wav");
-                            try (FileOutputStream fos = new FileOutputStream(audioFile)) {
-                                fos.write(audioBytes);
+                                    "tts_book" + page.bookId
+                                            + "_page" + page.pageNumber
+                                            + "_" + voice + ".wav");
+
+                            // flush + close 명시적으로
+                            FileOutputStream fos = new FileOutputStream(audioFile);
+                            fos.write(audioBytes);
+                            fos.flush();   // ← 추가
+                            fos.close();   // ← try-with-resources 대신 명시적 close
+
+                            // WAV 저장 완료 확인
+                            if (!audioFile.exists() || audioFile.length() == 0) {
+                                Log.e(TAG, "WAV 파일 저장 실패 또는 크기 0");
+                                mainHandler.post(() -> speakWithAndroidTts(text));
+                                return;
                             }
+
+                            // timestamps JSON 저장
+                            File tsFile = new File(getFilesDir(),
+                                    "tts_book" + page.bookId
+                                            + "_page" + page.pageNumber
+                                            + "_" + voice + ".json");
+                            FileOutputStream tsFos = new FileOutputStream(tsFile);
+                            tsFos.write(new Gson().toJson(timestamps).getBytes());
+                            tsFos.flush();
+                            tsFos.close();
+
                             AppDatabase.getInstance(ViewerActivity.this)
                                     .libraryDao()
                                     .updateAudioFilePath(page.pageId, audioFile.getAbsolutePath());
-                            // 인메모리 dbPages 도 즉시 갱신
                             page.audioFilePath = audioFile.getAbsolutePath();
 
-                            mainHandler.post(() -> playLocalAudio(audioFile.getAbsolutePath()));
+                            Log.d(TAG, "WAV 저장 완료: " + audioFile.getName()
+                                    + " / 크기: " + audioFile.length() + "bytes");
+
+                            mainHandler.post(() ->
+                                    playLocalAudioWithHighlight(audioFile.getAbsolutePath(), timestamps));
+
                         } catch (Exception e) {
                             Log.e(TAG, "TTS 캐싱 실패: " + e.getMessage());
                             mainHandler.post(() -> speakWithAndroidTts(text));
@@ -432,8 +560,45 @@ public class ViewerActivity extends AppCompatActivity {
         androidTts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "db_" + currentDbIdx);
     }
 
+    private void startHighlightPolling() {
+        stopHighlightPolling();
+
+        highlightRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (mediaPlayer == null
+                        || !mediaPlayer.isPlaying()
+                        || currentTimestamps.isEmpty()) return;
+
+                float currentSec = mediaPlayer.getCurrentPosition() / 1000f;
+
+                for (TimestampEntry ts : currentTimestamps) {
+                    if (currentSec >= ts.start && currentSec < ts.end) {
+                        if (pageAdapter != null) {
+                            pageAdapter.setHighlightByText(ts.text, currentViewerIdx);
+                        }
+                        break;
+                    }
+                }
+
+                highlightHandler.postDelayed(this, 50);
+            }
+        };
+
+        highlightHandler.post(highlightRunnable);
+    }
+
+    private void stopHighlightPolling() {
+        if (highlightRunnable != null) {
+            highlightHandler.removeCallbacks(highlightRunnable);
+            highlightRunnable = null;
+        }
+    }
+
     private void stopPlayback() {
         setPlayingState(false);
+        stopHighlightPolling();
+        currentTimestamps.clear();
         releaseMediaPlayer();
         if (androidTts != null) androidTts.stop();
         if (pageAdapter != null) pageAdapter.clearHighlight();
@@ -581,17 +746,6 @@ public class ViewerActivity extends AppCompatActivity {
         if (currentWordIdx >= pageAdapter.getPageCount()) return;
 
         Page currentPage = getDbPageForViewerIndex(currentWordIdx);
-        if (currentPage != null) {
-            Log.d("TTS_PATH", "=== 페이지 " + currentWordIdx + " ===");
-            Log.d("TTS_PATH", "audioFilePath: " + currentPage.audioFilePath);
-            Log.d("TTS_PATH", "emotionLabel: " + currentPage.emotionLabel);
-            if (currentPage.audioFilePath != null) {
-                File f = new File(currentPage.audioFilePath);
-                Log.d("TTS_PATH", "파일 존재: " + f.exists() + " / 크기: " + f.length() + "bytes");
-            }
-        } else {
-            Log.d("TTS_PATH", "currentPage == null (DB 매핑 실패)");
-        }
 
         String pageText = pageAdapter.getPageText(currentWordIdx);
         if (pageText == null || pageText.isEmpty()) {
@@ -603,12 +757,18 @@ public class ViewerActivity extends AppCompatActivity {
         // Page currentPage = getDbPageForViewerIndex(currentWordIdx);
 
         // ── 경로 1: 로컬 파일 재생 ──────────────────────────────
-        if (currentPage != null
-                && currentPage.audioFilePath != null
-                && new File(currentPage.audioFilePath).exists()) {
+        if (currentPage != null) {
+            String voice = (currentUserSetting != null && currentUserSetting.ttsVoice != null)
+                    ? currentUserSetting.ttsVoice : "Cherry";
+            String expectedPath = getFilesDir().getAbsolutePath()
+                    + "/tts_book" + currentPage.bookId
+                    + "_page" + currentPage.pageNumber
+                    + "_" + voice + ".wav";
 
-            playLocalAudio(currentPage.audioFilePath);
-            return;
+            if (new File(expectedPath).exists()) {
+                playLocalAudio(expectedPath);
+                return;
+            }
         }
 
         // ── 경로 2: /api/tts 실시간 요청 ────────────────────────
@@ -698,6 +858,7 @@ public class ViewerActivity extends AppCompatActivity {
     protected void onPause() {
         if (androidTts != null && androidTts.isSpeaking()) androidTts.stop();
         setPlayingState(false);
+        stopHighlightPolling();
         if (pageAdapter != null) pageAdapter.clearHighlight();
         super.onPause();
     }

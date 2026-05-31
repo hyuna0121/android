@@ -423,9 +423,6 @@ public class CameraActivity extends AppCompatActivity {
                                 startActivity(intent);
                                 finish();
                             });
-
-                            // ── 3단계: 백그라운드에서 TTS 생성 + 저장 ──────────
-                            generateTtsForPages(savedPages, ttsInstructions, db);
                         });
                     }
 
