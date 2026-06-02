@@ -305,10 +305,8 @@ public class CropView extends View {
 
             case MotionEvent.ACTION_MOVE:
                 if (dragIndex >= 0) {
-                    float cx = Math.max(imageRect.left  + handleRadius,
-                            Math.min(imageRect.right  - handleRadius, x));
-                    float cy = Math.max(imageRect.top   + handleRadius,
-                            Math.min(imageRect.bottom - handleRadius, y));
+                    float cx = Math.max(0f, Math.min(getWidth(),  x));
+                    float cy = Math.max(0f, Math.min(getHeight(), y));
                     pts[dragIndex].set(cx, cy);
                     invalidate();
                     return true;
