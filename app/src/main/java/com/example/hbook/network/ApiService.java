@@ -1,5 +1,6 @@
 package com.example.hbook.network;
 
+import com.example.hbook.model.DetectCornersResponse;
 import com.example.hbook.model.OcrResponse;
 import com.example.hbook.model.TtsRequest;
 import com.example.hbook.model.TtsResponse;
@@ -40,4 +41,10 @@ public interface ApiService {
 
     @POST("api/tts")
     Call<TtsResponse> generateTts(@Body TtsRequest request);
+
+    @Multipart
+    @POST("api/detect-corners")
+    Call<DetectCornersResponse> detectCorners(
+            @Part List<MultipartBody.Part> images
+    );
 }

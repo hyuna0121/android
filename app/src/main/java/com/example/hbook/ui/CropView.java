@@ -20,10 +20,9 @@ import androidx.annotation.Nullable;
  *
  * 사용법:
  *   1. setBitmap(bmp, originalWidth, originalHeight) 으로 이미지 설정
- *      - bmp            : 화면 표시용 (축소/회전 적용된) Bitmap
- *      - originalWidth  : 원본 파일의 실제 픽셀 너비  (EXIF 회전 반영 후 기준)
- *      - originalHeight : 원본 파일의 실제 픽셀 높이 (EXIF 회전 반영 후 기준)
- *   2. getCorners() 로 원본 픽셀 좌표 기준 꼭짓점 획득
+ *   2. (선택) setCorners(float[8]) 으로 자동 감지된 꼭짓점 적용
+ *      → 미지정 시 resetCorners() 가 네 모서리로 초기화
+ *   3. getCorners() 로 원본 픽셀 좌표 기준 꼭짓점 획득
  *
  * 좌표 순서: [0]=TL, [1]=TR, [2]=BR, [3]=BL
  */
@@ -44,15 +43,17 @@ public class CropView extends View {
     private int dragIndex = -1;
 
     // ── 이미지 ───────────────────────────────────────────────────────
-    private Bitmap bitmap;
-    private final RectF imageRect = new RectF();
+    private Bitmap        bitmap;
+    private final RectF   imageRect = new RectF();
+    private int           originalWidth  = 0;
+    private int           originalHeight = 0;
 
     /**
-     * 원본 파일의 실제 해상도 (EXIF 회전 적용 후 기준).
-     * getCorners() 에서 뷰 좌표 → 원본 픽셀 좌표 역산에 사용.
+     * 자동 감지된 초기 꼭짓점 (원본 픽셀 좌표).
+     * setBitmap() 이후 layoutImage() 가 끝나면 뷰 좌표로 변환해 적용됩니다.
+     * null 이면 resetCorners() 로 네 모서리 초기화.
      */
-    private int originalWidth  = 0;
-    private int originalHeight = 0;
+    private float[] pendingAutoCorners = null;
 
     // ── Paint ────────────────────────────────────────────────────────
     private final Paint paintLine   = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -63,6 +64,7 @@ public class CropView extends View {
     private float handleRadius;
     private float touchRadius;
 
+    // ── 생성자 ───────────────────────────────────────────────────────
     public CropView(Context context) {
         super(context);
         init(context);
@@ -113,13 +115,33 @@ public class CropView extends View {
         this.originalHeight = originalHeight;
         if (getWidth() > 0) {
             layoutImage();
-            resetCorners();
+            applyCornersOrReset();
         }
         invalidate();
     }
 
+    /**
+     * 서버 자동 감지 결과(원본 픽셀 좌표)를 꼭짓점 초기값으로 설정합니다.
+     *
+     * setBitmap() 이전에 호출해도 되고 이후에 호출해도 됩니다.
+     * - 이전 호출 → pendingAutoCorners 에 저장 후 layoutImage() 때 적용
+     * - 이후 호출 → 즉시 뷰 좌표로 변환해 표시
+     *
+     * @param originalPixelCorners float[8]: x0,y0(TL), x1,y1(TR), x2,y2(BR), x3,y3(BL)
+     *                             원본 파일 픽셀 좌표 기준
+     */
+    public void setCorners(float[] originalPixelCorners) {
+        pendingAutoCorners = originalPixelCorners;
+        if (bitmap != null && getWidth() > 0) {
+            applyAutoCorners(originalPixelCorners);
+            invalidate();
+        }
+        // bitmap 미설정 상태면 setBitmap() → onSizeChanged() 에서 applyCornersOrReset() 호출됨
+    }
+
     /** 꼭짓점을 네 모서리로 초기화 */
     public void resetCorners() {
+        pendingAutoCorners = null;
         if (bitmap == null) return;
         float l = imageRect.left;
         float t = imageRect.top;
@@ -136,22 +158,16 @@ public class CropView extends View {
     /**
      * 원본 이미지 픽셀 좌표 기준 꼭짓점 반환.
      *
-     * 뷰에 표시된 Bitmap 은 축소본이므로,
-     * originalWidth/originalHeight 를 기준으로 스케일을 역산합니다.
-     *
-     * @return float[8]: x0,y0(TL), x1,y1(TR), x2,y2(BR), x3,y3(BL)
-     *                   단위: 원본 파일 픽셀
+     * @return float[8]: x0,y0(TL), x1,y1(TR), x2,y2(BR), x3,y3(BL)  원본 픽셀 좌표
+     *         bitmap 미설정 시 null
      */
     public float[] getCorners() {
         if (bitmap == null) return null;
 
-        // 뷰 안의 이미지 표시 영역 크기
         float displayW = imageRect.width();
         float displayH = imageRect.height();
-
-        // 원본 픽셀 → 뷰 픽셀 스케일 (originalWidth/Height 기준으로 역산)
-        float scaleX = originalWidth  / displayW;
-        float scaleY = originalHeight / displayH;
+        float scaleX   = originalWidth  / displayW;
+        float scaleY   = originalHeight / displayH;
 
         float[] result = new float[8];
         for (int i = 0; i < 4; i++) {
@@ -159,6 +175,56 @@ public class CropView extends View {
             result[i * 2 + 1] = (pts[i].y - imageRect.top)  * scaleY;
         }
         return result;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // 내부 헬퍼
+    // ─────────────────────────────────────────────────────────────────
+
+    /**
+     * pendingAutoCorners 가 있으면 뷰 좌표로 변환해 적용,
+     * 없으면 resetCorners() 로 네 모서리 초기화.
+     */
+    private void applyCornersOrReset() {
+        if (pendingAutoCorners != null) {
+            applyAutoCorners(pendingAutoCorners);
+        } else {
+            resetCorners();
+        }
+    }
+
+    /**
+     * 원본 픽셀 좌표 → 뷰 표시 좌표로 변환해 pts[] 에 적용.
+     */
+    private void applyAutoCorners(float[] originalPixelCorners) {
+        if (originalPixelCorners == null || originalPixelCorners.length < 8) {
+            resetCorners();
+            return;
+        }
+
+        float displayW = imageRect.width();
+        float displayH = imageRect.height();
+        if (displayW <= 0 || displayH <= 0 || originalWidth <= 0 || originalHeight <= 0) {
+            resetCorners();
+            return;
+        }
+
+        float scaleX = displayW  / originalWidth;
+        float scaleY = displayH / originalHeight;
+
+        for (int i = 0; i < 4; i++) {
+            float viewX = imageRect.left + originalPixelCorners[i * 2]     * scaleX;
+            float viewY = imageRect.top  + originalPixelCorners[i * 2 + 1] * scaleY;
+
+            // 핸들이 imageRect 밖으로 나가지 않게 클램프
+            viewX = Math.max(imageRect.left  + handleRadius,
+                    Math.min(imageRect.right  - handleRadius, viewX));
+            viewY = Math.max(imageRect.top   + handleRadius,
+                    Math.min(imageRect.bottom - handleRadius, viewY));
+
+            pts[i].set(viewX, viewY);
+        }
+        invalidate();
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -170,7 +236,7 @@ public class CropView extends View {
         super.onSizeChanged(w, h, oldw, oldh);
         if (bitmap != null) {
             layoutImage();
-            resetCorners();
+            applyCornersOrReset();
         }
     }
 
@@ -224,7 +290,7 @@ public class CropView extends View {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // 터치 이벤트
+    // 터치 처리 — 핸들 드래그
     // ─────────────────────────────────────────────────────────────────
 
     @Override
@@ -234,13 +300,15 @@ public class CropView extends View {
 
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                dragIndex = findClosestHandle(x, y);
+                dragIndex = findHandle(x, y);
                 return dragIndex >= 0;
 
             case MotionEvent.ACTION_MOVE:
                 if (dragIndex >= 0) {
-                    float cx = Math.max(imageRect.left,  Math.min(imageRect.right,  x));
-                    float cy = Math.max(imageRect.top,   Math.min(imageRect.bottom, y));
+                    float cx = Math.max(imageRect.left  + handleRadius,
+                            Math.min(imageRect.right  - handleRadius, x));
+                    float cy = Math.max(imageRect.top   + handleRadius,
+                            Math.min(imageRect.bottom - handleRadius, y));
                     pts[dragIndex].set(cx, cy);
                     invalidate();
                     return true;
@@ -255,18 +323,12 @@ public class CropView extends View {
         return super.onTouchEvent(event);
     }
 
-    private int findClosestHandle(float x, float y) {
-        int   best = -1;
-        float minD = Float.MAX_VALUE;
+    private int findHandle(float x, float y) {
         for (int i = 0; i < 4; i++) {
             float dx = x - pts[i].x;
             float dy = y - pts[i].y;
-            float d  = (float) Math.sqrt(dx * dx + dy * dy);
-            if (d < touchRadius && d < minD) {
-                minD = d;
-                best = i;
-            }
+            if (dx * dx + dy * dy <= touchRadius * touchRadius) return i;
         }
-        return best;
+        return -1;
     }
 }
