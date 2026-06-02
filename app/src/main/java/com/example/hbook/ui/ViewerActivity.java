@@ -42,8 +42,11 @@ import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.reflect.TypeToken;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -96,6 +99,7 @@ public class ViewerActivity extends AppCompatActivity {
 
     private float avgValence = 0f;
     private float avgArousal = 0f;
+    private float avgDominance = 0f;
 
     private ApiService apiService;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -103,7 +107,7 @@ public class ViewerActivity extends AppCompatActivity {
     // 하이라이팅
     private List<TimestampEntry> currentTimestamps = new ArrayList<>();
     private final Handler  highlightHandler  = new Handler(Looper.getMainLooper());
-    private       Runnable highlightRunnable = null;
+    private Runnable highlightRunnable = null;
 
     private static class WordToken {
         final String word;
@@ -185,12 +189,15 @@ public class ViewerActivity extends AppCompatActivity {
         if (!dbPages.isEmpty()) {
             float sumValence = 0f;
             float sumArousal = 0f;
+            float sumDominance = 0f;
             for (Page p : dbPages) {
                 sumValence += p.emotionValence;
                 sumArousal += p.emotionArousal;
+                sumDominance += p.emotionDominance;
             }
             avgValence = sumValence / dbPages.size();
             avgArousal = sumArousal / dbPages.size();
+            avgDominance = sumDominance / dbPages.size();
         }
         // ────────────────────────────────────────────────────────────────────
 
@@ -340,9 +347,9 @@ public class ViewerActivity extends AppCompatActivity {
             if (tsFile.exists()) {
                 try {
                     StringBuilder sb = new StringBuilder();
-                    java.io.BufferedReader reader = new java.io.BufferedReader(
-                            new java.io.InputStreamReader(
-                                    new java.io.FileInputStream(tsFile)));
+                    BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(
+                                    new FileInputStream(tsFile)));
                     String line;
                     while ((line = reader.readLine()) != null) {
                         sb.append(line);
@@ -424,13 +431,11 @@ public class ViewerActivity extends AppCompatActivity {
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setDataSource(filePath);
             mediaPlayer.prepare();
-            mediaPlayer.setOnCompletionListener(mp -> {
-                mainHandler.post(() -> {
-                    stopHighlightPolling();
-                    if (pageAdapter != null) pageAdapter.clearHighlight();
-                    advanceToNextDbPage();
-                });
-            });
+            mediaPlayer.setOnCompletionListener(mp -> mainHandler.post(() -> {
+                stopHighlightPolling();
+                if (pageAdapter != null) pageAdapter.clearHighlight();
+                advanceToNextDbPage();
+            }));
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
                 Log.e(TAG, "MediaPlayer 오류: what=" + what);
                 stopHighlightPolling();
@@ -545,19 +550,27 @@ public class ViewerActivity extends AppCompatActivity {
     private void speakWithAndroidTts(String text) {
         if (!isAndroidTtsReady || androidTts == null || text.isEmpty()) return;
 
-        float arousalRange = (1.6f - 0.6f) / 2f;
-        float speechRate   = 1.0f + (avgArousal * arousalRange);
+        // arousal → speechRate
+        float speechRate = 1.0f + (avgArousal * 0.5f);
         if (avgValence < -0.5f) speechRate -= (-avgValence - 0.5f) * 0.3f;
         speechRate = Math.max(0.6f, Math.min(1.6f, speechRate));
 
-        float pitchRange = (1.4f - 0.7f) / 2f;
-        float pitch      = 1.0f + (avgValence * pitchRange);
+        // valence → pitch
+        float pitch = 1.0f + (avgValence * 0.35f);
         if (avgArousal > 0.5f && avgValence > 0f) pitch += avgArousal * 0.1f;
         pitch = Math.max(0.7f, Math.min(1.4f, pitch));
 
+        // dominance → volume
+        float volume = 0.75f + (avgDominance * 0.25f);
+        volume = Math.max(0.5f, Math.min(1.0f, volume));
+
         androidTts.setSpeechRate(speechRate);
         androidTts.setPitch(pitch);
-        androidTts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "db_" + currentDbIdx);
+
+        android.os.Bundle params = new android.os.Bundle();
+        params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume);
+
+        androidTts.speak(text, TextToSpeech.QUEUE_FLUSH, params, "db_" + currentDbIdx);
     }
 
     private void startHighlightPolling() {
