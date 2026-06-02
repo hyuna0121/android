@@ -34,6 +34,9 @@ public class Page {
     @ColumnInfo(name = "emotion_arousal")
     public float emotionArousal;
 
+    @ColumnInfo(name = "emotion_dominance", defaultValue = "0.0")
+    public float emotionDominance;
+
     // KoBERT 감정 레이블
     @Nullable
     @ColumnInfo(name = "emotion_label", defaultValue = "")
