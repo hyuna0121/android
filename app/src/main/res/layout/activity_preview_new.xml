@@ -78,13 +78,12 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- 하단 확인 버튼 -->
-    <TextView
+    <Button
         android:id="@+id/btn_confirm"
         android:layout_width="0dp"
         android:layout_height="52dp"
         android:layout_margin="16dp"
-        android:background="@drawable/bg_button_primary"
-        android:gravity="center"
+        android:backgroundTint="#4F8EF7"
         android:text="이대로 스캔하기"
         android:textColor="#FFFFFF"
         android:textSize="16sp"

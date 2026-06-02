@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -95,7 +96,7 @@ public class PreviewActivity extends AppCompatActivity {
         recyclerView = findViewById(R.id.recycler_preview);
         loadingView  = findViewById(R.id.loading_view);
         TextView tvClose    = findViewById(R.id.tv_close);
-        TextView btnConfirm = findViewById(R.id.btn_confirm);
+        Button   btnConfirm = findViewById(R.id.btn_confirm);
 
         // ── 데이터 수신 ─────────────────────────────────────────────
         imagePaths  = getIntent().getStringArrayExtra(EXTRA_IMAGE_PATHS);
