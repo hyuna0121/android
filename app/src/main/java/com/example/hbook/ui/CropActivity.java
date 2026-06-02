@@ -17,11 +17,25 @@ import com.example.hbook.R;
 import java.io.File;
 import java.io.IOException;
 
+/**
+ * 이미지 위에서 4개 꼭짓점을 지정(또는 확인)하는 화면.
+ *
+ * Intent extras (입력):
+ *   EXTRA_IMAGE_PATH   (String)  — 이미지 파일 경로 (필수)
+ *   EXTRA_PAGE_LABEL   (String)  — 상단 뱃지 텍스트 (예: "2 / 5  •  확인 필요")
+ *   EXTRA_AUTO_CORNERS (String)  — 서버 자동 감지 꼭짓점 "x0,y0,...,x3,y3" (선택)
+ *                                  있으면 해당 위치로 초기화, 없으면 네 모서리 초기화
+ *
+ * Intent extras (출력):
+ *   EXTRA_IMAGE_PATH   (String)  — 입력과 동일
+ *   EXTRA_CORNERS      (String)  — 최종 확정 꼭짓점 문자열
+ */
 public class CropActivity extends AppCompatActivity {
 
-    public static final String EXTRA_IMAGE_PATH = "image_path";
-    public static final String EXTRA_PAGE_LABEL = "page_label";
-    public static final String EXTRA_CORNERS    = "corners";
+    public static final String EXTRA_IMAGE_PATH   = "image_path";
+    public static final String EXTRA_PAGE_LABEL   = "page_label";
+    public static final String EXTRA_AUTO_CORNERS = "auto_corners"; // ← 신규
+    public static final String EXTRA_CORNERS      = "corners";
 
     private CropView cropView;
     private String   imagePath;
@@ -31,8 +45,9 @@ public class CropActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_crop);
 
-        imagePath = getIntent().getStringExtra(EXTRA_IMAGE_PATH);
-        String pageLabel = getIntent().getStringExtra(EXTRA_PAGE_LABEL);
+        imagePath              = getIntent().getStringExtra(EXTRA_IMAGE_PATH);
+        String pageLabel       = getIntent().getStringExtra(EXTRA_PAGE_LABEL);
+        String autoCornersStr  = getIntent().getStringExtra(EXTRA_AUTO_CORNERS); // ← 신규
 
         if (imagePath == null) {
             Toast.makeText(this, "이미지를 불러올 수 없습니다.", Toast.LENGTH_SHORT).show();
@@ -49,6 +64,16 @@ public class CropActivity extends AppCompatActivity {
 
         if (pageLabel != null) tvBadge.setText(pageLabel);
 
+        // ── 자동 감지 꼭짓점이 있으면 CropView 에 미리 설정 ──────────
+        // loadBitmap() 보다 먼저 호출해도 됩니다.
+        // CropView.setCorners() 내부에서 bitmap 준비 후 자동 적용합니다.
+        if (autoCornersStr != null && !autoCornersStr.isEmpty()) {
+            float[] autoCorners = parseCorners(autoCornersStr);
+            if (autoCorners != null) {
+                cropView.setCorners(autoCorners);
+            }
+        }
+
         loadBitmap();
 
         tvCancel.setOnClickListener(v -> {
@@ -56,7 +81,17 @@ public class CropActivity extends AppCompatActivity {
             finish();
         });
 
-        tvReset.setOnClickListener(v -> cropView.resetCorners());
+        // 초기화: 자동 감지 꼭짓점이 있으면 그 위치로, 없으면 네 모서리로 초기화
+        tvReset.setOnClickListener(v -> {
+            if (autoCornersStr != null && !autoCornersStr.isEmpty()) {
+                float[] autoCorners = parseCorners(autoCornersStr);
+                if (autoCorners != null) {
+                    cropView.setCorners(autoCorners);
+                    return;
+                }
+            }
+            cropView.resetCorners();
+        });
 
         btnRetake.setOnClickListener(v -> {
             Intent result = new Intent();
@@ -86,6 +121,10 @@ public class CropActivity extends AppCompatActivity {
         });
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    // Bitmap 로드 (EXIF 회전 반영)
+    // ─────────────────────────────────────────────────────────────────
+
     private void loadBitmap() {
         File file = new File(imagePath);
         if (!file.exists()) {
@@ -94,27 +133,23 @@ public class CropActivity extends AppCompatActivity {
             return;
         }
 
-        // ── STEP 1: EXIF 회전 각도 먼저 읽기 ──
         int rotation = getExifRotation(imagePath);
 
-        // ── STEP 2: 원본 파일의 실제 크기 측정 (디코딩 없이) ──
         BitmapFactory.Options boundsOpts = new BitmapFactory.Options();
         boundsOpts.inJustDecodeBounds = true;
         BitmapFactory.decodeFile(imagePath, boundsOpts);
-        int rawW = boundsOpts.outWidth;   // EXIF 적용 전 픽셀 너비
-        int rawH = boundsOpts.outHeight;  // EXIF 적용 전 픽셀 높이
+        int rawW = boundsOpts.outWidth;
+        int rawH = boundsOpts.outHeight;
 
-        // EXIF 90/270도 회전이면 너비·높이가 뒤바뀜 → 회전 후 기준으로 보정
         int originalWidth, originalHeight;
         if (rotation == 90 || rotation == 270) {
-            originalWidth  = rawH;  // 회전 후 너비 = 회전 전 높이
-            originalHeight = rawW;  // 회전 후 높이 = 회전 전 너비
+            originalWidth  = rawH;
+            originalHeight = rawW;
         } else {
             originalWidth  = rawW;
             originalHeight = rawH;
         }
 
-        // ── STEP 3: 화면 표시용 Bitmap 디코딩 (inSampleSize 로 축소) ──
         int targetSize = 2048;
         int sampleSize = 1;
         if (rawW > targetSize || rawH > targetSize) {
@@ -131,7 +166,6 @@ public class CropActivity extends AppCompatActivity {
             return;
         }
 
-        // ── STEP 4: EXIF 회전 적용 (화면 표시용 Bitmap 에만) ──
         if (rotation != 0) {
             Matrix matrix = new Matrix();
             matrix.postRotate(rotation);
@@ -141,9 +175,7 @@ public class CropActivity extends AppCompatActivity {
             bmp = rotated;
         }
 
-        // ── STEP 5: CropView 에 표시용 Bitmap + 원본 해상도 전달 ──
-        // getCorners() 는 originalWidth/Height 기준으로 좌표를 역산하므로
-        // 서버로 전송되는 좌표가 원본 파일 픽셀과 1:1로 대응됨
+        // setBitmap() 내부에서 pendingAutoCorners 가 있으면 자동 적용됨
         cropView.setBitmap(bmp, originalWidth, originalHeight);
     }
 
@@ -162,6 +194,18 @@ public class CropActivity extends AppCompatActivity {
         } catch (IOException e) {
             e.printStackTrace();
             return 0;
+        }
+    }
+
+    private static float[] parseCorners(String s) {
+        try {
+            String[] parts = s.split(",");
+            if (parts.length != 8) return null;
+            float[] arr = new float[8];
+            for (int i = 0; i < 8; i++) arr[i] = Float.parseFloat(parts[i].trim());
+            return arr;
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 }

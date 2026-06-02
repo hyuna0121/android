@@ -1,150 +1,275 @@
 package com.example.hbook.ui;
 
-import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.media.ExifInterface;
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.hbook.R;
-import com.example.hbook.network.ApiService;
+import com.example.hbook.model.CapturedItem;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-
-import okhttp3.MediaType;
-import okhttp3.MultipartBody;
-import okhttp3.OkHttpClient;
-import okhttp3.RequestBody;
-import okhttp3.ResponseBody;
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
-import retrofit2.Retrofit;
-import retrofit2.converter.gson.GsonConverterFactory;
 
 /**
- * 실험용 전처리 결과 확인 화면.
- * CameraActivity 에서 CapturedItem 리스트를 받아 /api/preview-crop 으로 전송하고,
- * 응답 HTML 을 WebView 로 표시합니다.
+ * 스캔 전 미리보기 화면.
+ *
+ * 기존: WebView 로 서버 HTML 렌더링 (실험용)
+ * 변경: 썸네일 리스트 + 각 항목 탭 → CropActivity 로 영역 수정 가능
  *
  * Intent extras (입력):
- *   EXTRA_IMAGE_PATHS  (String[]) - 이미지 파일 경로 배열
- *   EXTRA_CORNERS_LIST (String[]) - 각 이미지의 corners 문자열 배열
+ *   EXTRA_IMAGE_PATHS   String[]  — 이미지 경로 배열
+ *   EXTRA_CORNERS_LIST  String[]  — 각 이미지 corners 문자열 배열
+ *   EXTRA_AUTO_FLAGS    boolean[] — 각 이미지가 자동 감지됐는지 여부
+ *
+ * Intent extras (출력, RESULT_OK 시):
+ *   EXTRA_UPDATED_CORNERS  String[] — 수정 완료 후 corners 배열
+ *                                     (수정 없으면 입력과 동일)
  */
 public class PreviewActivity extends AppCompatActivity {
 
-    public static final String EXTRA_IMAGE_PATHS  = "image_paths";
-    public static final String EXTRA_CORNERS_LIST = "corners_list";
+    public static final String EXTRA_IMAGE_PATHS     = "image_paths";
+    public static final String EXTRA_CORNERS_LIST    = "corners_list";
+    public static final String EXTRA_AUTO_FLAGS      = "auto_flags";     // ← 신규
+    public static final String EXTRA_UPDATED_CORNERS = "updated_corners"; // ← 신규 (출력)
 
-    private WebView      webView;
-    private LinearLayout loadingView;
+    private RecyclerView     recyclerView;
+    private PreviewAdapter   adapter;
+    private LinearLayout     loadingView;
 
-    @SuppressLint("SetJavaScriptEnabled")
+    // 현재 수정 중인 이미지 인덱스 (CropActivity 결과 반영 시 사용)
+    private int editingIndex = -1;
+
+    // 데이터 (수정 가능하므로 배열 복사본 보유)
+    private String[]  imagePaths;
+    private String[]  cornersList;
+    private boolean[] autoFlags;
+
+    // ── CropActivity 런처 (미리보기에서 영역 수정) ───────────────────
+    private final ActivityResultLauncher<Intent> editCropLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.StartActivityForResult(),
+                    result -> {
+                        if (result.getResultCode() == Activity.RESULT_OK
+                                && result.getData() != null
+                                && editingIndex >= 0) {
+
+                            String newCorners = result.getData()
+                                    .getStringExtra(CropActivity.EXTRA_CORNERS);
+                            if (newCorners != null) {
+                                cornersList[editingIndex] = newCorners;
+                                autoFlags[editingIndex]   = false; // 수동 수정 완료
+                                adapter.notifyItemChanged(editingIndex);
+                                Toast.makeText(this, (editingIndex + 1) + "번 사진 영역이 수정됐어요.",
+                                        Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                        editingIndex = -1;
+                    });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_preview);
+        setContentView(R.layout.activity_preview_new); // 새 레이아웃 사용
 
-        webView     = findViewById(R.id.web_view);
-        loadingView = findViewById(R.id.loading_view);
-        TextView tvClose = findViewById(R.id.tv_close);
+        recyclerView = findViewById(R.id.recycler_preview);
+        loadingView  = findViewById(R.id.loading_view);
+        TextView tvClose    = findViewById(R.id.tv_close);
+        Button   btnConfirm = findViewById(R.id.btn_confirm);
 
-        tvClose.setOnClickListener(v -> finish());
+        // ── 데이터 수신 ─────────────────────────────────────────────
+        imagePaths  = getIntent().getStringArrayExtra(EXTRA_IMAGE_PATHS);
+        String[] inputCorners = getIntent().getStringArrayExtra(EXTRA_CORNERS_LIST);
+        boolean[] inputFlags  = getIntent().getBooleanArrayExtra(EXTRA_AUTO_FLAGS);
 
-        // WebView 설정 - 이미지 저장을 위해 JS 활성화
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setBuiltInZoomControls(true);
-        settings.setDisplayZoomControls(false);
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                loadingView.setVisibility(View.GONE);
-                webView.setVisibility(View.VISIBLE);
-            }
-        });
-
-        // Intent 에서 데이터 수신
-        String[] imagePaths  = getIntent().getStringArrayExtra(EXTRA_IMAGE_PATHS);
-        String[] cornersList = getIntent().getStringArrayExtra(EXTRA_CORNERS_LIST);
-
-        if (imagePaths == null || cornersList == null || imagePaths.length == 0) {
+        if (imagePaths == null || imagePaths.length == 0) {
             Toast.makeText(this, "전달된 이미지가 없습니다.", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
 
-        sendPreviewRequest(imagePaths, cornersList);
+        // 방어적 복사 (수정 가능하게)
+        cornersList = inputCorners != null
+                ? Arrays.copyOf(inputCorners, imagePaths.length)
+                : new String[imagePaths.length];
+        autoFlags   = inputFlags != null
+                ? Arrays.copyOf(inputFlags, imagePaths.length)
+                : new boolean[imagePaths.length];
+
+        // ── RecyclerView ────────────────────────────────────────────
+        adapter = new PreviewAdapter();
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setAdapter(adapter);
+
+        // ── 버튼 ────────────────────────────────────────────────────
+        tvClose.setOnClickListener(v -> {
+            setResult(Activity.RESULT_CANCELED);
+            finish();
+        });
+
+        btnConfirm.setOnClickListener(v -> {
+            // 수정된 corners 를 CameraActivity 로 돌려줌
+            Intent result = new Intent();
+            result.putExtra(EXTRA_UPDATED_CORNERS, cornersList);
+            setResult(Activity.RESULT_OK, result);
+            finish();
+        });
     }
 
-    private void sendPreviewRequest(String[] imagePaths, String[] cornersList) {
-        OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(120, TimeUnit.SECONDS)
-                .readTimeout(300, TimeUnit.SECONDS)
-                .writeTimeout(120, TimeUnit.SECONDS)
-                .build();
+    // ─────────────────────────────────────────────────────────────────
+    // 특정 이미지 영역 수정 → CropActivity 실행
+    // ─────────────────────────────────────────────────────────────────
 
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("https://perish-impure-hatred.ngrok-free.dev/")
-                .client(client)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
+    private void openEditCrop(int index) {
+        editingIndex = index;
+        String label = (index + 1) + " / " + imagePaths.length + "  •  영역 수정";
 
-        ApiService apiService = retrofit.create(ApiService.class);
+        Intent intent = new Intent(this, CropActivity.class);
+        intent.putExtra(CropActivity.EXTRA_IMAGE_PATH, imagePaths[index]);
+        intent.putExtra(CropActivity.EXTRA_PAGE_LABEL, label);
 
-        List<MultipartBody.Part> imageParts  = new ArrayList<>();
-        List<MultipartBody.Part> cornersParts = new ArrayList<>();
-
-        for (int i = 0; i < imagePaths.length; i++) {
-            // 이미지 파트
-            File file = new File(imagePaths[i]);
-            RequestBody requestFile = RequestBody.create(MediaType.parse("image/jpeg"), file);
-            imageParts.add(MultipartBody.Part.createFormData("image", file.getName(), requestFile));
-
-            // corners 파트
-            String cornersStr = (i < cornersList.length && cornersList[i] != null)
-                    ? cornersList[i] : "";
-            cornersParts.add(MultipartBody.Part.createFormData("corners_" + i, cornersStr));
+        // 현재 corners 를 자동 감지 초기값으로 전달 (수정 전 상태로 시작)
+        String currentCorners = cornersList[index];
+        if (currentCorners != null && !currentCorners.isEmpty()) {
+            intent.putExtra(CropActivity.EXTRA_AUTO_CORNERS, currentCorners);
         }
 
-        apiService.previewCrop(imageParts, cornersParts).enqueue(new Callback<ResponseBody>() {
-            @Override
-            public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    try {
-                        String html = response.body().string();
-                        // base64 이미지가 포함된 HTML 이므로 loadDataWithBaseURL 사용
-                        webView.loadDataWithBaseURL(
-                                null, html, "text/html", "UTF-8", null);
-                    } catch (Exception e) {
-                        showError("HTML 파싱 실패: " + e.getMessage());
-                    }
-                } else {
-                    showError("서버 응답 오류: " + response.code());
-                }
-            }
-
-            @Override
-            public void onFailure(Call<ResponseBody> call, Throwable t) {
-                showError("요청 실패: " + t.getMessage());
-            }
-        });
+        editCropLauncher.launch(intent);
     }
 
-    private void showError(String msg) {
-        runOnUiThread(() -> {
-            loadingView.setVisibility(View.GONE);
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
-        });
+    // ─────────────────────────────────────────────────────────────────
+    // RecyclerView Adapter
+    // ─────────────────────────────────────────────────────────────────
+
+    private class PreviewAdapter
+            extends RecyclerView.Adapter<PreviewAdapter.ViewHolder> {
+
+        @NonNull
+        @Override
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.item_preview_image, parent, false);
+            return new ViewHolder(v);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            holder.bind(position);
+        }
+
+        @Override
+        public int getItemCount() {
+            return imagePaths != null ? imagePaths.length : 0;
+        }
+
+        class ViewHolder extends RecyclerView.ViewHolder {
+
+            ImageView imgThumb;
+            TextView  tvLabel;
+            TextView  tvStatus;
+            TextView  tvEdit;
+
+            ViewHolder(@NonNull View itemView) {
+                super(itemView);
+                imgThumb = itemView.findViewById(R.id.img_thumb);
+                tvLabel  = itemView.findViewById(R.id.tv_label);
+                tvStatus = itemView.findViewById(R.id.tv_status);
+                tvEdit   = itemView.findViewById(R.id.tv_edit);
+            }
+
+            void bind(int position) {
+                // ── 레이블 ──────────────────────────────────────────
+                tvLabel.setText((position + 1) + "번 사진");
+
+                // ── 자동/수동 상태 배지 ──────────────────────────────
+                if (autoFlags[position]) {
+                    tvStatus.setText("자동 인식됨");
+                    tvStatus.setTextColor(0xFF4F8EF7);   // 파란색
+                } else {
+                    tvStatus.setText("직접 지정");
+                    tvStatus.setTextColor(0xFF888888);   // 회색
+                }
+
+                // ── 썸네일 (비동기 로드) ─────────────────────────────
+                imgThumb.setImageBitmap(null);
+                loadThumb(imagePaths[position], imgThumb);
+
+                // ── "수정" 버튼 ─────────────────────────────────────
+                tvEdit.setOnClickListener(v -> openEditCrop(position));
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // 썸네일 로드 (간단한 백그라운드 처리)
+    // ─────────────────────────────────────────────────────────────────
+
+    private void loadThumb(String path, ImageView target) {
+        new Thread(() -> {
+            Bitmap thumb = decodeSampledBitmap(path, 200, 200);
+            if (thumb != null) {
+                runOnUiThread(() -> target.setImageBitmap(thumb));
+            }
+        }).start();
+    }
+
+    private static Bitmap decodeSampledBitmap(String path, int reqW, int reqH) {
+        BitmapFactory.Options opts = new BitmapFactory.Options();
+        opts.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(path, opts);
+
+        int sampleSize = 1;
+        if (opts.outHeight > reqH || opts.outWidth > reqW) {
+            sampleSize = Math.max(
+                    Math.round((float) opts.outHeight / reqH),
+                    Math.round((float) opts.outWidth  / reqW));
+        }
+
+        // EXIF 회전
+        int rotation = 0;
+        try {
+            ExifInterface exif = new ExifInterface(path);
+            int ori = exif.getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+            if      (ori == ExifInterface.ORIENTATION_ROTATE_90)  rotation = 90;
+            else if (ori == ExifInterface.ORIENTATION_ROTATE_180) rotation = 180;
+            else if (ori == ExifInterface.ORIENTATION_ROTATE_270) rotation = 270;
+        } catch (IOException ignored) {}
+
+        BitmapFactory.Options decodeOpts = new BitmapFactory.Options();
+        decodeOpts.inSampleSize = sampleSize;
+        Bitmap bmp = BitmapFactory.decodeFile(path, decodeOpts);
+        if (bmp == null) return null;
+
+        if (rotation != 0) {
+            Matrix m = new Matrix();
+            m.postRotate(rotation);
+            Bitmap rotated = Bitmap.createBitmap(
+                    bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
+            bmp.recycle();
+            return rotated;
+        }
+        return bmp;
     }
 }
