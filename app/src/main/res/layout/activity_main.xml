@@ -50,8 +50,8 @@
             android:clickable="true"
             android:focusable="true"
             android:padding="8dp"
-            android:src="@android:drawable/ic_menu_more"
-            app:tint="#555555" />
+            android:src="@drawable/ic_menu_more"
+            app:tint="#737373" />
 
     </LinearLayout>
 
