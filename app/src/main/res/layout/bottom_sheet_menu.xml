@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#FFFFFF"
+    android:orientation="vertical"
+    android:paddingBottom="20dp">
+
+    <!-- 핸들 -->
+    <View
+        android:layout_width="36dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="6dp"
+        android:background="#DDDDDD" />
+
+    <!-- 편집 -->
+    <LinearLayout
+        android:id="@+id/menu_edit"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@android:drawable/ic_menu_edit"
+            android:layout_marginEnd="14dp"
+            app:tint="#6C5CE7" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="이름 수정"
+            android:textColor="#6C5CE7"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="#EEEEEE"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp" />
+
+    <!-- 최신순 -->
+    <LinearLayout
+        android:id="@+id/menu_sort_latest"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@android:drawable/ic_menu_recent_history"
+            android:layout_marginEnd="14dp"
+            app:tint="#888888" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="최신순"
+            android:textColor="#333333"
+            android:textSize="15sp" />
+
+        <!-- 체크 이미지 (선택 상태 표시) -->
+        <ImageView
+            android:id="@+id/iv_check_latest"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_check_on"
+            android:visibility="visible" />
+
+    </LinearLayout>
+
+    <!-- 이름순 -->
+    <LinearLayout
+        android:id="@+id/menu_sort_name"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@android:drawable/ic_menu_sort_by_size"
+            android:layout_marginEnd="14dp"
+            app:tint="#888888" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="이름순"
+            android:textColor="#333333"
+            android:textSize="15sp" />
+
+        <ImageView
+            android:id="@+id/iv_check_name"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_check_on"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="#EEEEEE"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp" />
+
+    <!-- 선택 삭제 (편집 모드 진입 없이 바로 삭제 모드) -->
+    <LinearLayout
+        android:id="@+id/menu_delete"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@android:drawable/ic_menu_delete"
+            android:layout_marginEnd="14dp"
+            app:tint="#E53E3E" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="선택 삭제"
+            android:textColor="#E53E3E"
+            android:textSize="15sp" />
+
+    </LinearLayout>
+
+</LinearLayout>

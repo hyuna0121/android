@@ -275,6 +275,7 @@ public class CameraActivity extends AppCompatActivity {
         intent.putExtra(ReviewActivity.EXTRA_AUTO_FLAGS,   autoFlags);
         if (bookName != null) intent.putExtra("BOOK_NAME", bookName);
         startActivity(intent);
+        finish();
     }
 
     // ── UI 갱신 ─────────────────────────────────────────────────────

@@ -1,63 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8F9FA"
+    android:background="#F5F5F5"
     android:fitsSystemWindows="true"
     tools:context=".ui.MainActivity"
     tools:ignore="HardcodedText,ContentDescription">
 
-    <EditText
-        android:id="@+id/et_search"
+    <!-- ── 기본 상단 바 ──────────────────────────────────────────────────── -->
+    <LinearLayout
+        android:id="@+id/layout_normal_bar"
         android:layout_width="0dp"
-        android:layout_height="40dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
-        android:background="@drawable/bg_search_bar"
-        android:drawableStart="@android:drawable/ic_menu_search"
-        android:drawablePadding="8dp"
-        android:hint="검색"
-        android:importantForAutofill="no"
-        android:inputType="text"
+        android:layout_height="56dp"
+        android:background="#FFFFFF"
+        android:elevation="2dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
-        android:textColorHint="#999999"
-        android:textSize="16sp"
-        app:layout_constraintEnd_toStartOf="@+id/tv_edit"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <TextView
-        android:id="@+id/tv_edit"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="16dp"
-        android:clickable="true"
-        android:drawablePadding="4dp"
-        android:focusable="true"
-        android:padding="8dp"
-        android:text="편집"
-        android:textColor="#777777"
-        android:textSize="17sp"
-        android:textStyle="bold"
-        app:drawableStartCompat="@android:drawable/ic_menu_edit"
-        app:drawableTint="#777777"
-        app:layout_constraintBottom_toBottomOf="@+id/et_search"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/et_search" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
 
+        <EditText
+            android:id="@+id/et_search"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_search_bar"
+            android:drawableStart="@android:drawable/ic_menu_search"
+            android:drawablePadding="8dp"
+            android:hint="책 검색"
+            android:importantForAutofill="no"
+            android:inputType="text"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:textColorHint="#AAAAAA"
+            android:textSize="14sp" />
+
+        <!-- ⋮ 더보기 버튼 -->
+        <ImageView
+            android:id="@+id/iv_more"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="8dp"
+            android:src="@android:drawable/ic_menu_more"
+            app:tint="#555555" />
+
+    </LinearLayout>
+
+    <!-- ── 편집 모드 상단 바 ─────────────────────────────────────────────── -->
     <LinearLayout
         android:id="@+id/layout_delete_mode"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="56dp"
         android:background="#FFFFFF"
-        android:elevation="4dp"
+        android:elevation="2dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="16dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -69,10 +77,10 @@
             android:layout_height="wrap_content"
             android:clickable="true"
             android:focusable="true"
-            android:padding="8dp"
+            android:padding="12dp"
             android:text="취소"
             android:textColor="#777777"
-            android:textSize="16sp" />
+            android:textSize="15sp" />
 
         <TextView
             android:id="@+id/tv_delete_count"
@@ -81,8 +89,8 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="0개 선택"
-            android:textColor="#000000"
-            android:textSize="18sp"
+            android:textColor="#111111"
+            android:textSize="16sp"
             android:textStyle="bold" />
 
         <TextView
@@ -91,11 +99,12 @@
             android:layout_height="wrap_content"
             android:clickable="true"
             android:focusable="true"
-            android:padding="8dp"
+            android:padding="12dp"
             android:text="삭제"
-            android:textColor="#F44336"
-            android:textSize="16sp"
+            android:textColor="#E53E3E"
+            android:textSize="15sp"
             android:textStyle="bold" />
+
     </LinearLayout>
 
     <androidx.constraintlayout.widget.Barrier
@@ -103,61 +112,169 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:barrierDirection="bottom"
-        app:constraint_referenced_ids="et_search,layout_delete_mode" />
+        app:constraint_referenced_ids="layout_normal_bar,layout_delete_mode" />
 
+    <!-- 전체 선택 행 -->
+    <LinearLayout
+        android:id="@+id/layout_select_all"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:background="#FFFFFF"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/barrier_top">
+
+        <!-- 전체 선택 체크 아이콘 (단순 ImageView) -->
+        <ImageView
+            android:id="@+id/iv_check_all_icon"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:src="@drawable/ic_check_off" />
+
+        <CheckBox
+            android:id="@+id/cb_select_all"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:background="@null"
+            android:button="@null"
+            android:text="전체 선택"
+            android:textColor="#555555"
+            android:textSize="13sp"
+            android:clickable="true"
+            android:focusable="true" />
+
+    </LinearLayout>
+
+    <!-- 전체선택 아래 구분선 -->
+    <View
+        android:id="@+id/divider_select_all"
+        android:layout_width="0dp"
+        android:layout_height="0.5dp"
+        android:background="#EEEEEE"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/layout_select_all" />
+
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/barrier_top2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:barrierDirection="bottom"
+        app:constraint_referenced_ids="barrier_top,divider_select_all" />
+
+    <!-- 책 그리드 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_library"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="16dp"
-        app:layout_constraintBottom_toTopOf="@+id/bottom_nav_bg"
+        android:layout_marginTop="8dp"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="80dp"
+        android:clipToPadding="false"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/barrier_top" />
+        app:layout_constraintTop_toBottomOf="@+id/barrier_top2" />
 
-    <View
+    <!-- ── 하단 네비게이션 ────────────────────────────────────────────────── -->
+    <LinearLayout
         android:id="@+id/bottom_nav_bg"
         android:layout_width="match_parent"
         android:layout_height="64dp"
         android:background="#FFFFFF"
         android:elevation="8dp"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        android:orientation="horizontal"
+        android:gravity="center"
+        app:layout_constraintBottom_toBottomOf="parent">
 
-    <ImageView
-        android:id="@+id/iv_home"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_marginStart="48dp"
-        android:elevation="8dp"
-        android:src="@android:drawable/ic_menu_today"
-        app:layout_constraintBottom_toBottomOf="@+id/bottom_nav_bg"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/bottom_nav_bg"
-        app:tint="#007AFF" />
+        <!-- 서재 -->
+        <LinearLayout
+            android:id="@+id/nav_home"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackground">
 
-    <ImageView
-        android:id="@+id/iv_profile"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_marginEnd="48dp"
-        android:elevation="8dp"
-        android:src="@android:drawable/ic_menu_myplaces"
-        app:layout_constraintBottom_toBottomOf="@+id/bottom_nav_bg"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/bottom_nav_bg"
-        app:tint="#A0A0A0" />
+            <ImageView
+                android:id="@+id/iv_home"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@drawable/ic_library"
+                app:tint="#6C5CE7" />
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fab_add"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="32dp"
-        android:src="@android:drawable/ic_input_add"
-        app:backgroundTint="#007AFF"
-        app:elevation="12dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:tint="#FFFFFF" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="서재"
+                android:textColor="#6C5CE7"
+                android:textSize="10sp" />
+
+        </LinearLayout>
+
+        <!-- FAB (중앙) — FrameLayout으로 감싸야 weight가 정확히 적용됨 -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center">
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fab_add"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:src="@android:drawable/ic_input_add"
+                app:backgroundTint="#6C5CE7"
+                app:elevation="4dp"
+                app:fabSize="normal"
+                app:tint="#FFFFFF" />
+
+        </FrameLayout>
+
+        <!-- 설정 -->
+        <LinearLayout
+            android:id="@+id/nav_profile"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackground">
+
+            <ImageView
+                android:id="@+id/iv_profile"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@drawable/ic_settings"
+                app:tint="#AAAAAA" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="설정"
+                android:textColor="#AAAAAA"
+                android:textSize="10sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
