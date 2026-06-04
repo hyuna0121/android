@@ -13,12 +13,16 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.hbook.R;
+import com.example.hbook.data.AppDatabase;
+import com.example.hbook.model.UserSetting;
 import com.example.hbook.model.auth.LoginRequest;
 import com.example.hbook.model.auth.LoginResponse;
 import com.example.hbook.network.ApiClient;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -80,12 +84,25 @@ public class LoginActivity extends AppCompatActivity {
 
                         if (response.isSuccessful() && response.body() != null) {
                             LoginResponse body = response.body();
+                            int userId = body.getUserId();
+
                             getSharedPreferences("user_prefs", MODE_PRIVATE).edit()
-                                    .putInt("logged_in_user_id", body.getUserId())
+                                    .putInt("logged_in_user_id", userId)
                                     .putString("auth_token", body.getToken())
                                     .putLong("token_saved_at", System.currentTimeMillis())
                                     .apply();
-                            goToMain();
+
+                            // 로컬 Room에 UserSetting이 없으면 생성
+                            ExecutorService executor = Executors.newSingleThreadExecutor();
+                            executor.execute(() -> {
+                                AppDatabase db = AppDatabase.getInstance(getApplicationContext());
+                                UserSetting existing = db.userDao().getUserSetting(userId);
+                                if (existing == null) {
+                                    db.userDao().insertUserSetting(new UserSetting(userId));
+                                }
+                                runOnUiThread(() -> goToMain());
+                            });
+
                         } else if (response.code() == 401) {
                             Toast.makeText(LoginActivity.this,
                                     "이메일 또는 비밀번호가 일치하지 않습니다.", Toast.LENGTH_SHORT).show();

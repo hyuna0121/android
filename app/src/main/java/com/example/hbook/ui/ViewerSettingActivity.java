@@ -55,6 +55,8 @@ public class ViewerSettingActivity extends AppCompatActivity {
         currentSetting = AppDatabase.getInstance(this).userDao().getUserSetting(currentUserId);
         if (currentSetting == null) {
             currentSetting = new UserSetting(currentUserId);
+            AppDatabase.getInstance(this).userDao().insertUserSetting(currentSetting);
+            currentSetting = AppDatabase.getInstance(this).userDao().getUserSetting(currentUserId);
         }
 
         initViews();
