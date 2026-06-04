@@ -11,7 +11,6 @@ import android.provider.OpenableColumns;
 import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -31,9 +30,9 @@ import androidx.core.content.ContextCompat;
 
 import com.example.hbook.R;
 import com.example.hbook.data.AppDatabase;
-import com.example.hbook.model.CapturedItem;
 import com.example.hbook.model.DetectCornersResponse;
 import com.example.hbook.model.UserSetting;
+import com.example.hbook.network.ApiClient;
 import com.example.hbook.network.ApiService;
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -46,17 +45,13 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
-import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
-import retrofit2.Retrofit;
-import retrofit2.converter.gson.GsonConverterFactory;
 
 /**
  * 1단계 화면: 카메라 촬영 / 갤러리 선택
@@ -64,8 +59,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
  * 역할:
  *   - 사진 촬영 또는 갤러리 선택 (최대 MAX_IMAGES장)
  *   - 5장 초과 시 안내 다이얼로그
- *   - 하단 썸네일 스트립으로 선택된 사진 수 표시
- *   - "꼭짓점 판별" 버튼 → /api/detect-corners 요청 → 로딩 표시
+ *   - "꼭짓점 판별" 버튼 → /api/detect-corners 요청
  *   - 결과 수신 후 ReviewActivity 로 이동
  */
 public class CameraActivity extends AppCompatActivity {
@@ -74,57 +68,38 @@ public class CameraActivity extends AppCompatActivity {
     private static final int    MAX_IMAGES = 5;
 
     // ── UI ──────────────────────────────────────────────────────────
-    private PreviewView  viewFinder;
-    private ImageCapture imageCapture;
+    private PreviewView     viewFinder;
+    private ImageCapture    imageCapture;
     private ExecutorService cameraExecutor;
 
-    private TextView      tvBookTitle;
-    private TextView      tvBack;
-    private TextView      tvCount;          // "2 / 5" 표시
-    private View          btnCapture;
-    private ImageView     btnGallery;
-    private TextView      btnDetect;        // "꼭짓점 판별" 버튼
-    private View          loadingOverlay;   // 로딩 오버레이
-    private TextView      tvLoading;        // "로딩 중..." 텍스트
+    private TextView  tvBookTitle;
+    private TextView  tvBack;
+    private TextView  tvCount;
+    private View      btnCapture;
+    private ImageView btnGallery;
+    private TextView  btnDetect;
+    private View      loadingOverlay;
+    private TextView  tvLoading;
 
     // ── 데이터 ───────────────────────────────────────────────────────
     private String      bookName;
-    private int         currentUserId     = -1;
+    private int         currentUserId = -1;
     private UserSetting currentUserSetting;
 
-    /** 촬영/선택된 파일 목록 (꼭짓점 판별 전 단계) */
     private final List<File> selectedFiles = new ArrayList<>();
 
-    // ── Retrofit ────────────────────────────────────────────────────
-    private final OkHttpClient okHttpClient = new OkHttpClient.Builder()
-            .connectTimeout(120, TimeUnit.SECONDS)
-            .readTimeout(300, TimeUnit.SECONDS)
-            .writeTimeout(120, TimeUnit.SECONDS)
-            .addInterceptor(chain -> chain.proceed(
-                    chain.request().newBuilder()
-                            .addHeader("ngrok-skip-browser-warning", "true")
-                            .build()))
-            .build();
+    // ── ApiService — ApiClient 싱글턴으로 초기화 ──────────────────────
+    // 기존: final 필드로 OkHttpClient + Retrofit 블록 직접 선언
+    // 변경: onCreate 에서 ApiClient.getService(this) 한 줄로 교체
+    private ApiService apiService;
 
-    private final ApiService apiService = new Retrofit.Builder()
-            .baseUrl("https://perish-impure-hatred.ngrok-free.dev/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(ApiService.class);
-
-    // ── 갤러리 런처 ──────────────────────────────────────────────────
+    // ── 갤러리 런처 ─────────────────────────────────────────────────
     private final ActivityResultLauncher<String> galleryLauncher =
             registerForActivityResult(new ActivityResultContracts.GetMultipleContents(), uris -> {
                 if (uris == null || uris.isEmpty()) return;
 
                 int remaining = MAX_IMAGES - selectedFiles.size();
-
-                // 5장 초과 안내
-                if (remaining <= 0) {
-                    showMaxImagesDialog();
-                    return;
-                }
+                if (remaining <= 0) { showMaxImagesDialog(); return; }
 
                 List<Uri> sorted = new ArrayList<>(uris);
                 sorted.sort((a, b) -> getFileName(a).compareTo(getFileName(b)));
@@ -145,7 +120,6 @@ public class CameraActivity extends AppCompatActivity {
                             .setPositiveButton("확인", null)
                             .show();
                 }
-
                 updateUI();
             });
 
@@ -172,7 +146,11 @@ public class CameraActivity extends AppCompatActivity {
         if (bookName != null) tvBookTitle.setText(bookName);
 
         currentUserSetting = AppDatabase.getInstance(this).userDao().getUserSetting(currentUserId);
-        if (currentUserSetting == null) currentUserSetting = new com.example.hbook.model.UserSetting(currentUserId);
+        if (currentUserSetting == null)
+            currentUserSetting = new UserSetting(currentUserId);
+
+        // ── ApiClient 싱글턴 — JWT 토큰 + ngrok 헤더 자동 첨부 ───────
+        apiService = ApiClient.getService(this);
 
         if (allPermissionsGranted()) startCamera();
         else ActivityCompat.requestPermissions(this,
@@ -188,7 +166,6 @@ public class CameraActivity extends AppCompatActivity {
     }
 
     // ── 카메라 ──────────────────────────────────────────────────────
-
     private void startCamera() {
         ListenableFuture<ProcessCameraProvider> future = ProcessCameraProvider.getInstance(this);
         future.addListener(() -> {
@@ -208,12 +185,7 @@ public class CameraActivity extends AppCompatActivity {
 
     private void takePhoto() {
         if (imageCapture == null) return;
-
-        // 5장 초과 체크
-        if (selectedFiles.size() >= MAX_IMAGES) {
-            showMaxImagesDialog();
-            return;
-        }
+        if (selectedFiles.size() >= MAX_IMAGES) { showMaxImagesDialog(); return; }
 
         File photoFile = new File(getCacheDir(),
                 "temp_ocr_" + System.currentTimeMillis() + ".jpg");
@@ -235,16 +207,9 @@ public class CameraActivity extends AppCompatActivity {
                 });
     }
 
-    // ── 꼭짓점 판별 요청 ────────────────────────────────────────────
-
-    /**
-     * "꼭짓점 판별" 버튼 클릭 시 호출.
-     * 선택된 파일들을 /api/detect-corners 로 전송하고
-     * 결과를 ReviewActivity 로 전달합니다.
-     */
+    // ── 꼭짓점 판별 요청 ─────────────────────────────────────────────
     private void requestDetectCorners() {
         if (selectedFiles.isEmpty()) return;
-
         showLoading(true, "영역 분석 중...");
 
         List<MultipartBody.Part> imageParts = new ArrayList<>();
@@ -259,11 +224,11 @@ public class CameraActivity extends AppCompatActivity {
                     public void onResponse(@NonNull Call<DetectCornersResponse> call,
                                            @NonNull Response<DetectCornersResponse> response) {
                         showLoading(false, null);
+                        // 401은 ApiClient 인터셉터가 자동 처리
+                        if (response.code() == 401) return;
 
-                        if (!response.isSuccessful()
-                                || response.body() == null
+                        if (!response.isSuccessful() || response.body() == null
                                 || !"success".equals(response.body().status)) {
-                            // 서버 오류 → 모두 수동으로 ReviewActivity 이동
                             launchReviewActivity(null);
                             return;
                         }
@@ -276,20 +241,14 @@ public class CameraActivity extends AppCompatActivity {
                         showLoading(false, null);
                         Toast.makeText(CameraActivity.this,
                                 "네트워크 오류: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-                        // 오류 시에도 ReviewActivity 로 이동 (모두 수동)
                         launchReviewActivity(null);
                     }
                 });
     }
 
-    /**
-     * ReviewActivity 로 데이터를 전달하며 이동합니다.
-     *
-     * @param detectResult /api/detect-corners 응답 (null 이면 모두 수동)
-     */
     private void launchReviewActivity(DetectCornersResponse detectResult) {
-        String[] paths      = new String[selectedFiles.size()];
-        String[] corners    = new String[selectedFiles.size()];
+        String[]  paths     = new String[selectedFiles.size()];
+        String[]  corners   = new String[selectedFiles.size()];
         boolean[] autoFlags = new boolean[selectedFiles.size()];
 
         for (int i = 0; i < selectedFiles.size(); i++) {
@@ -319,14 +278,9 @@ public class CameraActivity extends AppCompatActivity {
     }
 
     // ── UI 갱신 ─────────────────────────────────────────────────────
-
-    /**
-     * 선택된 파일 수에 따라 카운트 표시와 "꼭짓점 판별" 버튼 가시성 갱신
-     */
     private void updateUI() {
         int count = selectedFiles.size();
 
-        // 카운트 뱃지
         if (count > 0) {
             tvCount.setVisibility(View.VISIBLE);
             tvCount.setText(count + " / " + MAX_IMAGES);
@@ -334,72 +288,84 @@ public class CameraActivity extends AppCompatActivity {
             tvCount.setVisibility(View.GONE);
         }
 
-        // 꼭짓점 판별 버튼
         btnDetect.setVisibility(count > 0 ? View.VISIBLE : View.INVISIBLE);
         btnDetect.setText(count + "장 꼭짓점 판별");
-
-        // 촬영 버튼 비활성 (5장 다 찼을 때)
         btnCapture.setAlpha(count >= MAX_IMAGES ? 0.4f : 1.0f);
         btnCapture.setEnabled(count < MAX_IMAGES);
     }
 
-    private void showLoading(boolean show, String message) {
-        runOnUiThread(() -> {
-            loadingOverlay.setVisibility(show ? View.VISIBLE : View.GONE);
-            if (message != null) tvLoading.setText(message);
-            btnDetect.setEnabled(!show);
-        });
-    }
-
-    private void showMaxImagesDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle("사진 수 제한")
-                .setMessage("최대 " + MAX_IMAGES + "장까지 선택할 수 있어요.")
-                .setPositiveButton("확인", null)
-                .show();
-    }
-
-    // ── 유틸 ────────────────────────────────────────────────────────
-
     private void handleBackButton() {
-        if (bookName != null && !selectedFiles.isEmpty()) {
+        if (!selectedFiles.isEmpty()) {
             new AlertDialog.Builder(this)
-                    .setTitle("스캔 취소")
-                    .setMessage("지금 돌아가면 선택한 사진이 모두 사라져요.")
+                    .setTitle("촬영 취소")
+                    .setMessage("선택한 사진이 모두 삭제됩니다. 나가시겠어요?")
                     .setPositiveButton("나가기", (d, w) -> finish())
-                    .setNegativeButton("계속하기", null)
+                    .setNegativeButton("계속 촬영", null)
                     .show();
         } else {
             finish();
         }
     }
 
-    private File uriToFile(Uri uri) {
-        try {
-            InputStream      in  = getContentResolver().openInputStream(uri);
-            File             tmp = new File(getCacheDir(), "temp_ocr_" + UUID.randomUUID() + ".jpg");
-            FileOutputStream out = new FileOutputStream(tmp);
-            byte[] buf = new byte[4096]; int len;
-            while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
-            out.close(); in.close();
-            return tmp;
-        } catch (Exception e) { e.printStackTrace(); return null; }
+    private void showMaxImagesDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("최대 장수 초과")
+                .setMessage("최대 " + MAX_IMAGES + "장까지 선택할 수 있어요.")
+                .setPositiveButton("확인", null)
+                .show();
     }
 
-    private String getFileName(Uri uri) {
-        String name = "";
-        Cursor cursor = getContentResolver().query(uri, null, null, null, null);
-        if (cursor != null) {
-            int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-            if (cursor.moveToFirst() && idx >= 0) name = cursor.getString(idx);
-            cursor.close();
-        }
-        return name;
+    private void showLoading(boolean show, String msg) {
+        loadingOverlay.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (msg != null) tvLoading.setText(msg);
     }
 
     private boolean allPermissionsGranted() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private String getFileName(Uri uri) {
+        String result = null;
+        if ("content".equals(uri.getScheme())) {
+            try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                    if (idx >= 0) result = cursor.getString(idx);
+                }
+            }
+        }
+        if (result == null) result = uri.getLastPathSegment();
+        return result != null ? result : "";
+    }
+
+    private File uriToFile(Uri uri) {
+        try {
+            InputStream is = getContentResolver().openInputStream(uri);
+            if (is == null) return null;
+            File file = new File(getCacheDir(), "gallery_" + UUID.randomUUID() + ".jpg");
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                byte[] buf = new byte[4096];
+                int len;
+                while ((len = is.read(buf)) != -1) fos.write(buf, 0, len);
+            }
+            is.close();
+            return file;
+        } catch (Exception e) {
+            Log.e(TAG, "URI → File 변환 실패: " + e.getMessage());
+            return null;
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 10 && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startCamera();
+        }
     }
 
     @Override

@@ -35,6 +35,7 @@ import com.example.hbook.model.Page;
 import com.example.hbook.model.TtsRequest;
 import com.example.hbook.model.TtsResponse;
 import com.example.hbook.model.UserSetting;
+import com.example.hbook.network.ApiClient;
 import com.example.hbook.network.ApiService;
 
 import java.io.File;
@@ -106,26 +107,10 @@ public class ReviewActivity extends AppCompatActivity {
 
     private ReviewAdapter adapter;
 
-    // ── Retrofit ────────────────────────────────────────────────────
-    private final OkHttpClient okHttpClient = new OkHttpClient.Builder()
-            .connectTimeout(120, TimeUnit.SECONDS)
-            .readTimeout(300, TimeUnit.SECONDS)
-            .writeTimeout(120, TimeUnit.SECONDS)
-            .addInterceptor(chain -> chain.proceed(
-                    chain.request().newBuilder()
-                            .addHeader("ngrok-skip-browser-warning", "true")
-                            .build()))
-            .build();
+    private ApiService apiService;
 
     private UserSetting currentUserSetting;
     private int currentUserId = -1;
-
-    private final ApiService apiService = new Retrofit.Builder()
-            .baseUrl("https://perish-impure-hatred.ngrok-free.dev/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(ApiService.class);
 
     // ── 꼭짓점 재지정 런처 ──────────────────────────────────────────
     private final ActivityResultLauncher<Intent> cropLauncher =
@@ -228,6 +213,8 @@ public class ReviewActivity extends AppCompatActivity {
 
         tvBack.setOnClickListener(v -> finish());
         btnScan.setOnClickListener(v -> requestScan());
+
+        apiService = ApiClient.getService(this);
     }
 
     // ── ViewPager2 어댑터 ────────────────────────────────────────────

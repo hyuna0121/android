@@ -47,6 +47,14 @@
         android:backgroundTint="#007AFF"
         android:layout_marginBottom="16dp"/>
 
+    <ProgressBar
+        android:id="@+id/progress_bar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/tv_go_to_signup"
         android:layout_width="wrap_content"

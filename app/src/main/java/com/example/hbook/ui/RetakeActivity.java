@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat;
 
 import com.example.hbook.R;
 import com.example.hbook.model.DetectCornersResponse;
+import com.example.hbook.network.ApiClient;
 import com.example.hbook.network.ApiService;
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -30,31 +31,19 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
-import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
-import retrofit2.Retrofit;
-import retrofit2.converter.gson.GsonConverterFactory;
 
 /**
  * ReviewActivity 에서 "다시 찍기" 버튼을 눌렀을 때 열리는 화면.
  *
  * 촬영 → /api/detect-corners 자동 감지 → 결과를 ReviewActivity 로 반환.
  * 자동 감지 실패 시 CropActivity 로 이동해 수동 지정 후 반환.
- *
- * Intent extras (입력):
- *   "position"  int  — ReviewActivity 에서의 인덱스 (로깅용)
- *
- * Intent extras (출력, RESULT_OK):
- *   "new_image_path"          String  — 새로 찍은 파일 경로
- *   CropActivity.EXTRA_CORNERS String  — 최종 corners 문자열 (없으면 빈 문자열)
- *   "auto_detected"            boolean — 자동 감지 여부
  */
 public class RetakeActivity extends AppCompatActivity {
 
@@ -68,24 +57,12 @@ public class RetakeActivity extends AppCompatActivity {
 
     private File newPhotoFile;
 
-    private final OkHttpClient okHttpClient = new OkHttpClient.Builder()
-            .connectTimeout(120, TimeUnit.SECONDS)
-            .readTimeout(300, TimeUnit.SECONDS)
-            .writeTimeout(120, TimeUnit.SECONDS)
-            .addInterceptor(chain -> chain.proceed(
-                    chain.request().newBuilder()
-                            .addHeader("ngrok-skip-browser-warning", "true")
-                            .build()))
-            .build();
+    // ── ApiService — ApiClient 싱글턴으로 초기화 ──────────────────────
+    // 기존: final 필드로 OkHttpClient + Retrofit 블록 직접 선언
+    // 변경: onCreate 에서 ApiClient.getService(this) 한 줄로 교체
+    private ApiService apiService;
 
-    private final ApiService apiService = new Retrofit.Builder()
-            .baseUrl("https://perish-impure-hatred.ngrok-free.dev/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(ApiService.class);
-
-    // CropActivity 결과 런처
+    // ── CropActivity 결과 런처 ───────────────────────────────────────
     private final androidx.activity.result.ActivityResultLauncher<Intent> cropLauncher =
             registerForActivityResult(
                     new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
@@ -96,11 +73,10 @@ public class RetakeActivity extends AppCompatActivity {
                             String corners = result.getData().getStringExtra(CropActivity.EXTRA_CORNERS);
                             returnResult(newPhotoFile.getAbsolutePath(),
                                     corners != null ? corners : "", false);
-                        } else {
-                            // CropActivity 취소 → 다시 촬영 화면으로 돌아옴
                         }
                     });
 
+    // ── onCreate ────────────────────────────────────────────────────
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -109,8 +85,11 @@ public class RetakeActivity extends AppCompatActivity {
         viewFinder     = findViewById(R.id.viewFinder);
         loadingOverlay = findViewById(R.id.loading_overlay);
         tvLoading      = findViewById(R.id.tv_loading);
-        View btnCapture = findViewById(R.id.btn_capture);
-        TextView tvCancel = findViewById(R.id.tv_cancel);
+        View     btnCapture = findViewById(R.id.btn_capture);
+        TextView tvCancel   = findViewById(R.id.tv_cancel);
+
+        // ── ApiClient 싱글턴 — JWT 토큰 + ngrok 헤더 자동 첨부 ───────
+        apiService = ApiClient.getService(this);
 
         tvCancel.setOnClickListener(v -> {
             setResult(Activity.RESULT_CANCELED);
@@ -126,6 +105,7 @@ public class RetakeActivity extends AppCompatActivity {
         cameraExecutor = Executors.newSingleThreadExecutor();
     }
 
+    // ── 카메라 ──────────────────────────────────────────────────────
     private void startCamera() {
         ListenableFuture<ProcessCameraProvider> future = ProcessCameraProvider.getInstance(this);
         future.addListener(() -> {
@@ -155,21 +135,16 @@ public class RetakeActivity extends AppCompatActivity {
                 new ImageCapture.OnImageSavedCallback() {
                     @Override
                     public void onImageSaved(@NonNull ImageCapture.OutputFileResults r) {
-                        // 촬영 완료 → 자동 꼭짓점 감지 요청
                         autoDetectCorners(newPhotoFile);
                     }
                     @Override
                     public void onError(@NonNull ImageCaptureException e) {
-                        Toast.makeText(RetakeActivity.this,
-                                "촬영 실패", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(RetakeActivity.this, "촬영 실패", Toast.LENGTH_SHORT).show();
                     }
                 });
     }
 
-    /**
-     * 새로 찍은 사진 한 장을 /api/detect-corners 로 보내
-     * 자동 감지 성공 시 바로 반환, 실패 시 CropActivity 로 이동.
-     */
+    // ── 꼭짓점 자동 감지 ─────────────────────────────────────────────
     private void autoDetectCorners(File file) {
         showLoading(true, "영역 분석 중...");
 
@@ -183,6 +158,8 @@ public class RetakeActivity extends AppCompatActivity {
                     public void onResponse(@NonNull Call<DetectCornersResponse> call,
                                            @NonNull Response<DetectCornersResponse> response) {
                         showLoading(false, null);
+                        // 401은 ApiClient 인터셉터가 자동 처리
+                        if (response.code() == 401) return;
 
                         DetectCornersResponse.ImageResult r = null;
                         if (response.isSuccessful() && response.body() != null
@@ -191,12 +168,10 @@ public class RetakeActivity extends AppCompatActivity {
                             r = response.body().results.get(0);
                         }
 
-                        if (r != null && r.auto_detected && r.corners != null
-                                && !r.corners.isEmpty()) {
-                            // 자동 감지 성공 → 바로 반환
+                        if (r != null && r.auto_detected
+                                && r.corners != null && !r.corners.isEmpty()) {
                             returnResult(file.getAbsolutePath(), r.corners, true);
                         } else {
-                            // 실패 → CropActivity 로 수동 지정
                             openCropActivity(file, r != null ? r.corners : "");
                         }
                     }
@@ -230,10 +205,8 @@ public class RetakeActivity extends AppCompatActivity {
     }
 
     private void showLoading(boolean show, String msg) {
-        runOnUiThread(() -> {
-            loadingOverlay.setVisibility(show ? View.VISIBLE : View.GONE);
-            if (msg != null) tvLoading.setText(msg);
-        });
+        loadingOverlay.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (msg != null) tvLoading.setText(msg);
     }
 
     @Override
