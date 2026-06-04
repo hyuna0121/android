@@ -53,6 +53,14 @@
             android:name=".ui.CropActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.ReviewActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.RetakeActivity"
+            android:exported="false" />
     </application>
 
 </manifest>
