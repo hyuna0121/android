@@ -8,7 +8,10 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -32,6 +35,7 @@ public class SignupActivity extends AppCompatActivity {
 
     private EditText    etEmail, etPassword, etDob;
     private CheckBox    cbDyslexia;
+    private ImageView ivDyslexiaCheck;
     private Button      btnCheckEmail, btnSubmit;
     private ProgressBar progressBar;
 
@@ -47,9 +51,24 @@ public class SignupActivity extends AppCompatActivity {
         etPassword    = findViewById(R.id.et_signup_password);
         etDob         = findViewById(R.id.et_signup_dob);
         cbDyslexia    = findViewById(R.id.cb_dyslexia);
+        ivDyslexiaCheck  = findViewById(R.id.iv_dyslexia_check);
         btnCheckEmail = findViewById(R.id.btn_check_email);
         btnSubmit     = findViewById(R.id.btn_signup_submit);
         progressBar   = findViewById(R.id.progress_bar);
+
+        LinearLayout layoutDyslexia = findViewById(R.id.layout_dyslexia);
+        if (layoutDyslexia != null) {
+            layoutDyslexia.setOnClickListener(v -> toggleDyslexia());
+        }
+        if (ivDyslexiaCheck != null) {
+            ivDyslexiaCheck.setOnClickListener(v -> toggleDyslexia());
+        }
+
+        TextView tvGoToLogin = findViewById(R.id.tv_go_to_login);
+        if (tvGoToLogin != null) {
+            tvGoToLogin.setOnClickListener(v ->
+                    startActivity(new Intent(SignupActivity.this, LoginActivity.class)));
+        }
 
         etEmail.addTextChangedListener(new TextWatcher() {
             @Override public void afterTextChanged(Editable s) {}
@@ -164,6 +183,15 @@ public class SignupActivity extends AppCompatActivity {
         btnCheckEmail.setEnabled(!on);
         if (progressBar != null)
             progressBar.setVisibility(on ? View.VISIBLE : View.GONE);
+    }
+
+    private void toggleDyslexia() {
+        boolean nowChecked = !cbDyslexia.isChecked();
+        cbDyslexia.setChecked(nowChecked);
+        if (ivDyslexiaCheck != null) {
+            ivDyslexiaCheck.setImageResource(
+                    nowChecked ? R.drawable.ic_check_on : R.drawable.ic_check_off);
+        }
     }
 
     private String hashPassword(String pw) {
