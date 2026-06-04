@@ -82,8 +82,12 @@ public class MainActivity extends AppCompatActivity {
         ivMore.setOnClickListener(v -> showBottomSheetMenu());
         tvCancelDelete.setOnClickListener(v -> exitDeleteMode());
         tvConfirmDelete.setOnClickListener(v -> executeDelete());
-        ivProfile.setOnClickListener(v ->
-                startActivity(new Intent(this, ProfileActivity.class)));
+
+        View.OnClickListener goToProfile = v ->
+                startActivity(new Intent(this, ProfileActivity.class));
+        ivProfile.setOnClickListener(goToProfile);
+        View navProfile = findViewById(R.id.nav_profile);
+        if (navProfile != null) navProfile.setOnClickListener(goToProfile);
         fabAdd.setOnClickListener(v -> showNameInputDialog());
 
         // 전체 선택: 텍스트 클릭 or 아이콘 클릭 모두 동작

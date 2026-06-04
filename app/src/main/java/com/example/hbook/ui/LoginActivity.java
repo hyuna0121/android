@@ -84,6 +84,7 @@ public class LoginActivity extends AppCompatActivity {
                                     .putInt("logged_in_user_id", body.getUserId())
                                     .putString("auth_token", body.getToken())
                                     .putLong("token_saved_at", System.currentTimeMillis())
+                                    .putString("user_email", email)
                                     .apply();
                             goToMain();
                         } else if (response.code() == 401) {

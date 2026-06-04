@@ -32,4 +32,8 @@ public interface UserDao {
 
     @Update
     void updateUserSetting(UserSetting userSetting);
+
+    // 유저 ID로 유저 정보 조회
+    @Query("SELECT * FROM users WHERE user_id = :userId")
+    User getUserById(int userId);
 }

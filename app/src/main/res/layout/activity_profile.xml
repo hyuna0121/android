@@ -4,197 +4,291 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8F9FA"
-    android:fitsSystemWindows="true">
+    android:background="#F5F5F5"
+    android:fitsSystemWindows="true"
+    tools:ignore="HardcodedText,ContentDescription"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- 본문 영역 -->
-    <LinearLayout
+    <ScrollView
         android:id="@+id/content_area"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="0dp"
-        android:orientation="vertical"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
-        android:paddingTop="40dp"
+        android:fillViewport="true"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/bottom_nav_bg">
+        app:layout_constraintBottom_toTopOf="@id/bottom_nav_bg"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- 타이틀 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="내 프로필"
-            android:textSize="26sp"
-            android:textStyle="bold"
-            android:textColor="#1A1A1A"
-            android:layout_marginBottom="32dp"/>
-
-        <!-- 설정 그룹 라벨 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="앱 설정"
-            android:textSize="12sp"
-            android:textColor="#AAAAAA"
-            android:textAllCaps="true"
-            android:letterSpacing="0.1"
-            android:layout_marginBottom="8dp"/>
-
-        <!-- 뷰어 맞춤 설정 -->
         <LinearLayout
-            android:id="@+id/btn_viewer_settings"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:background="#FFFFFF"
-            android:elevation="1dp"
-            android:layout_marginBottom="1dp">
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="32dp"
+            android:paddingBottom="20dp">
 
-            <TextView
-                android:layout_width="0dp"
+            <!-- 아바타 + 이메일 -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="뷰어 맞춤 설정"
-                android:textSize="15sp"
-                android:textColor="#1A1A1A"/>
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_marginBottom="28dp">
 
+                <TextView
+                    android:id="@+id/tv_avatar"
+                    android:layout_width="80dp"
+                    android:layout_height="80dp"
+                    android:gravity="center"
+                    android:text="U"
+                    android:textSize="32sp"
+                    android:textStyle="bold"
+                    android:textColor="#6C5CE7"
+                    android:background="@drawable/bg_avatar_circle"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView
+                    android:id="@+id/tv_user_email"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textSize="15sp"
+                    android:textColor="#555555" />
+
+            </LinearLayout>
+
+            <!-- 앱 설정 라벨 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="›"
-                android:textSize="20sp"
-                android:textColor="#CCCCCC"/>
+                android:text="앱 설정"
+                android:textSize="11sp"
+                android:textColor="#AAAAAA"
+                android:textAllCaps="true"
+                android:letterSpacing="0.1"
+                android:layout_marginBottom="6dp"
+                android:layout_marginStart="4dp" />
+
+            <!-- 설정 카드 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="20dp"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#E8E8E8"
+                app:strokeWidth="1dp">
+
+                <!-- 뷰어 맞춤 설정 -->
+                <LinearLayout
+                    android:id="@+id/btn_viewer_settings"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <!-- 아이콘 박스 -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:layout_marginEnd="12dp"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        app:cardBackgroundColor="#EDE9FE">
+
+                        <ImageView
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_gravity="center"
+                            android:src="@android:drawable/ic_menu_preferences"
+                            app:tint="#6C5CE7" />
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="뷰어 맞춤 설정"
+                        android:textSize="15sp"
+                        android:textColor="#222222" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="›"
+                        android:textSize="20sp"
+                        android:textColor="#CCCCCC" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 계정 라벨 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="계정"
+                android:textSize="11sp"
+                android:textColor="#AAAAAA"
+                android:textAllCaps="true"
+                android:letterSpacing="0.1"
+                android:layout_marginBottom="6dp"
+                android:layout_marginStart="4dp" />
+
+            <!-- 계정 카드 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#E8E8E8"
+                app:strokeWidth="1dp">
+
+                <!-- 로그아웃 -->
+                <LinearLayout
+                    android:id="@+id/btn_logout"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:layout_marginEnd="12dp"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        app:cardBackgroundColor="#FEE2E2">
+
+                        <ImageView
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_gravity="center"
+                            android:src="@android:drawable/ic_menu_close_clear_cancel"
+                            app:tint="#E53E3E" />
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="로그아웃"
+                        android:textSize="15sp"
+                        android:textColor="#E53E3E" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="›"
+                        android:textSize="20sp"
+                        android:textColor="#E53E3E" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
-
-        <!-- TTS 음성 선택 -->
-        <LinearLayout
-            android:id="@+id/btn_tts_voice"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:background="#FFFFFF"
-            android:elevation="1dp"
-            android:layout_marginBottom="32dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="TTS 음성 선택"
-                android:textSize="15sp"
-                android:textColor="#1A1A1A"/>
-
-            <TextView
-                android:id="@+id/tv_current_voice"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Cherry"
-                android:textSize="14sp"
-                android:textColor="#007AFF"
-                android:layout_marginEnd="4dp"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="›"
-                android:textSize="20sp"
-                android:textColor="#CCCCCC"/>
-
-        </LinearLayout>
-
-        <!-- 계정 그룹 라벨 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="계정"
-            android:textSize="12sp"
-            android:textColor="#AAAAAA"
-            android:textAllCaps="true"
-            android:letterSpacing="0.1"
-            android:layout_marginBottom="8dp"/>
-
-        <!-- 로그아웃 -->
-        <LinearLayout
-            android:id="@+id/btn_logout"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:background="#FFFFFF"
-            android:elevation="1dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="로그아웃"
-                android:textSize="15sp"
-                android:textColor="#F44336"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="›"
-                android:textSize="20sp"
-                android:textColor="#CCCCCC"/>
-
-        </LinearLayout>
-
-    </LinearLayout>
+    </ScrollView>
 
     <!-- 하단 네비게이션 -->
-    <View
+    <LinearLayout
         android:id="@+id/bottom_nav_bg"
         android:layout_width="match_parent"
         android:layout_height="64dp"
         android:background="#FFFFFF"
         android:elevation="8dp"
-        app:layout_constraintBottom_toBottomOf="parent"/>
+        android:orientation="horizontal"
+        android:gravity="center"
+        app:layout_constraintBottom_toBottomOf="parent">
 
-    <ImageView
-        android:id="@+id/iv_home"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_marginStart="48dp"
-        android:elevation="8dp"
-        android:src="@android:drawable/ic_menu_today"
-        app:layout_constraintBottom_toBottomOf="@id/bottom_nav_bg"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/bottom_nav_bg"
-        app:tint="#A0A0A0"/>
+        <!-- 서재 -->
+        <LinearLayout
+            android:id="@+id/nav_home"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackground">
 
-    <ImageView
-        android:id="@+id/iv_profile"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_marginEnd="48dp"
-        android:elevation="8dp"
-        android:src="@android:drawable/ic_menu_myplaces"
-        app:layout_constraintBottom_toBottomOf="@id/bottom_nav_bg"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@id/bottom_nav_bg"
-        app:tint="#007AFF"/>
+            <ImageView
+                android:id="@+id/iv_home"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@drawable/ic_library"
+                app:tint="#AAAAAA" />
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fab_add"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="32dp"
-        android:src="@android:drawable/ic_input_add"
-        app:backgroundTint="#007AFF"
-        app:elevation="12dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:tint="#FFFFFF"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="서재"
+                android:textColor="#AAAAAA"
+                android:textSize="10sp" />
+
+        </LinearLayout>
+
+        <!-- FAB 중앙 -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center">
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fab_add"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:src="@android:drawable/ic_input_add"
+                app:backgroundTint="#6C5CE7"
+                app:elevation="4dp"
+                app:fabSize="normal"
+                app:tint="#FFFFFF" />
+
+        </FrameLayout>
+
+        <!-- 설정 (현재 탭) -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/iv_profile"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@drawable/ic_settings"
+                app:tint="#6C5CE7" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="설정"
+                android:textColor="#6C5CE7"
+                android:textSize="10sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,244 +1,433 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8F9FA"
-    android:fillViewport="true">
+    android:background="#F5F5F5"
+    android:fillViewport="true"
+    tools:ignore="HardcodedText"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:padding="20dp">
 
+        <!-- 타이틀 -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            android:text="뷰어 맞춤 설정"
-            android:textColor="#333333"
-            android:textSize="24sp"
-            android:textStyle="bold" />
+            android:text="뷰어 설정"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#1A1A1A"
+            android:layout_marginBottom="16dp" />
 
-        <FrameLayout
+        <!-- 미리보기 박스 -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:layout_marginBottom="24dp"
-            android:background="@android:color/white"
-            android:elevation="2dp"
-            android:padding="16dp">
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#E8E8E8"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="#FFFFFF">
 
-            <TextView
-                android:id="@+id/tv_preview"
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="설정하신 환경이 이렇게 적용됩니다.\n편안한 독서를 위한 맞춤 설정입니다."
-                android:textColor="#000000" />
-        </FrameLayout>
+                android:padding="16dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:text="배경색 테마"
-            android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/tv_preview"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="설정하신 환경이 이렇게 적용됩니다."
+                    android:textSize="16sp"
+                    android:lineSpacingMultiplier="1.6"
+                    android:textColor="#333333" />
 
-        <LinearLayout
+            </FrameLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ── 배경 테마 ───────────────────────────────────────────────────── -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            android:orientation="horizontal"
-            android:weightSum="3">
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#E8E8E8"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="#FFFFFF">
 
-            <Button
-                android:id="@+id/btn_theme_white"
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_marginEnd="4dp"
-                android:layout_weight="1"
-                android:backgroundTint="#F5F5F5"
-                android:text="기본"
-                android:textColor="#333333" />
-
-            <Button
-                android:id="@+id/btn_theme_light_gray"
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_marginEnd="4dp"
-                android:layout_weight="1"
-                android:backgroundTint="#E0E0E0"
-                android:text="그레이"
-                android:textColor="#000000" />
-
-            <Button
-                android:id="@+id/btn_theme_dark_gray"
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_weight="1"
-                android:backgroundTint="#424242"
-                android:text="다크그레이"
-                android:textColor="#E0E0E0" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            android:orientation="horizontal"
-            android:weightSum="3">
-
-            <Button
-                android:id="@+id/btn_theme_black"
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_marginEnd="4dp"
-                android:layout_weight="1"
-                android:backgroundTint="#000000"
-                android:text="블랙"
-                android:textColor="#FFFFFF" />
-
-            <Button
-                android:id="@+id/btn_theme_beige"
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_marginEnd="4dp"
-                android:layout_weight="1"
-                android:backgroundTint="#F6F1E5"
-                android:text="베이지"
-                android:textColor="#4E3726" />
-
-            <Button
-                android:id="@+id/btn_theme_green"
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_weight="1"
-                android:backgroundTint="#233E3B"
-                android:text="다크그린"
-                android:textColor="#BDD9B9" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="글꼴"
-            android:textStyle="bold" />
-
-        <RadioGroup
-            android:id="@+id/rg_font_family"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:orientation="vertical">
-
-            <RadioButton
-                android:id="@+id/rb_font_default"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingBottom="8dp"
-                android:text="시스템" />
+                android:orientation="vertical"
+                android:padding="16dp">
 
-            <RadioButton
-                android:id="@+id/rb_font_nanum_barun"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingBottom="8dp"
-                android:text="나눔바른고딕" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="배경 테마"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="#888888"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.05"
+                    android:layout_marginBottom="12dp" />
 
-            <RadioButton
-                android:id="@+id/rb_font_nanum_round"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingBottom="8dp"
-                android:text="나눔스퀘어라운드" />
+                <!-- 1행: 기본·그레이·다크그레이 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp"
+                    android:weightSum="3">
 
-            <RadioButton
-                android:id="@+id/rb_font_ridi"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingBottom="8dp"
-                android:text="리디바탕" />
+                    <Button
+                        android:id="@+id/btn_theme_white"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:backgroundTint="#F5F5F5"
+                        android:text="기본"
+                        android:textColor="#333333"
+                        android:textSize="13sp"
+                        android:stateListAnimator="@null" />
 
-            <RadioButton
-                android:id="@+id/rb_font_kopub"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingBottom="8dp"
-                android:text="KoPub 바탕" />
+                    <Button
+                        android:id="@+id/btn_theme_light_gray"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:backgroundTint="#E0E0E0"
+                        android:text="그레이"
+                        android:textColor="#000000"
+                        android:textSize="13sp"
+                        android:stateListAnimator="@null" />
 
-            <RadioButton
-                android:id="@+id/rb_font_maru"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingBottom="8dp"
-                android:text="마루부리" />
-        </RadioGroup>
+                    <Button
+                        android:id="@+id/btn_theme_dark_gray"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="#424242"
+                        android:text="다크그레이"
+                        android:textColor="#E0E0E0"
+                        android:textSize="13sp"
+                        android:stateListAnimator="@null" />
 
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/switch_bold"
+                </LinearLayout>
+
+                <!-- 2행: 블랙·베이지·다크그린 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:weightSum="3">
+
+                    <Button
+                        android:id="@+id/btn_theme_black"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:backgroundTint="#000000"
+                        android:text="블랙"
+                        android:textColor="#FFFFFF"
+                        android:textSize="13sp"
+                        android:stateListAnimator="@null" />
+
+                    <Button
+                        android:id="@+id/btn_theme_beige"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:backgroundTint="#F6F1E5"
+                        android:text="베이지"
+                        android:textColor="#4E3726"
+                        android:textSize="13sp"
+                        android:stateListAnimator="@null" />
+
+                    <Button
+                        android:id="@+id/btn_theme_green"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="#233E3B"
+                        android:text="다크그린"
+                        android:textColor="#BDD9B9"
+                        android:textSize="13sp"
+                        android:stateListAnimator="@null" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ── 글꼴 ──────────────────────────────────────────────────────── -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            android:text="글자 굵게 보기"
-            android:textStyle="bold" />
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#E8E8E8"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="#FFFFFF">
 
-        <TextView
-            android:id="@+id/tv_font_size_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="글자 크기 (18sp)"
-            android:textStyle="bold" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
 
-        <SeekBar
-            android:id="@+id/sb_font_size"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="글꼴"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="#888888"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.05"
+                    android:layout_marginBottom="8dp" />
+
+                <RadioGroup
+                    android:id="@+id/rg_font_family"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/rb_font_default"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:buttonTint="#6C5CE7"
+                        android:text="시스템"
+                        android:textSize="14sp"
+                        android:textColor="#222222" />
+
+                    <RadioButton
+                        android:id="@+id/rb_font_nanum_barun"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:buttonTint="#6C5CE7"
+                        android:text="나눔바른고딕"
+                        android:textSize="14sp"
+                        android:textColor="#222222" />
+
+                    <RadioButton
+                        android:id="@+id/rb_font_nanum_round"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:buttonTint="#6C5CE7"
+                        android:text="나눔스퀘어라운드"
+                        android:textSize="14sp"
+                        android:textColor="#222222" />
+
+                    <RadioButton
+                        android:id="@+id/rb_font_ridi"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:buttonTint="#6C5CE7"
+                        android:text="리디바탕"
+                        android:textSize="14sp"
+                        android:textColor="#222222" />
+
+                    <RadioButton
+                        android:id="@+id/rb_font_kopub"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:buttonTint="#6C5CE7"
+                        android:text="KoPub 바탕"
+                        android:textSize="14sp"
+                        android:textColor="#222222" />
+
+                    <RadioButton
+                        android:id="@+id/rb_font_maru"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:buttonTint="#6C5CE7"
+                        android:text="마루부리"
+                        android:textSize="14sp"
+                        android:textColor="#222222" />
+
+                </RadioGroup>
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ── 기타 설정 (굵게·크기·간격) ──────────────────────────────── -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            android:max="30" />
+            android:layout_marginBottom="20dp"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#E8E8E8"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="#FFFFFF">
 
-        <TextView
-            android:id="@+id/tv_line_spacing_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="줄 간격 (1.5x)"
-            android:textStyle="bold" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
 
-        <SeekBar
-            android:id="@+id/sb_line_spacing"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            android:max="20" />
+                <!-- 글자 굵게 -->
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_bold"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="글자 굵게"
+                    android:textSize="14sp"
+                    android:textColor="#222222"
+                    app:thumbTint="#6C5CE7"
+                    app:trackTint="#D4CCFA" />
 
-        <TextView
-            android:id="@+id/tv_letter_spacing_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="자간 넓게 (0.0)"
-            android:textStyle="bold" />
+                <!-- 구분선 -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:background="#EEEEEE"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="14dp" />
 
-        <SeekBar
-            android:id="@+id/sb_letter_spacing"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="32dp"
-            android:max="15" />
+                <!-- 글자 크기 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
 
-        <Space
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="글자 크기"
+                        android:textSize="14sp"
+                        android:textColor="#222222" />
 
+                    <TextView
+                        android:id="@+id/tv_font_size_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="18sp"
+                        android:textSize="13sp"
+                        android:textColor="#6C5CE7"
+                        android:textStyle="bold" />
+
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/sb_font_size"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:progressTint="#6C5CE7"
+                    android:thumbTint="#6C5CE7"
+                    android:max="30" />
+
+                <!-- 줄 간격 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="줄 간격"
+                        android:textSize="14sp"
+                        android:textColor="#222222" />
+
+                    <TextView
+                        android:id="@+id/tv_line_spacing_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="1.5x"
+                        android:textSize="13sp"
+                        android:textColor="#6C5CE7"
+                        android:textStyle="bold" />
+
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/sb_line_spacing"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:progressTint="#6C5CE7"
+                    android:thumbTint="#6C5CE7"
+                    android:max="20" />
+
+                <!-- 자간 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="자간"
+                        android:textSize="14sp"
+                        android:textColor="#222222" />
+
+                    <TextView
+                        android:id="@+id/tv_letter_spacing_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.00"
+                        android:textSize="13sp"
+                        android:textColor="#6C5CE7"
+                        android:textStyle="bold" />
+
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/sb_letter_spacing"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:progressTint="#6C5CE7"
+                    android:thumbTint="#6C5CE7"
+                    android:max="15" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 설정 저장 버튼 -->
         <Button
             android:id="@+id/btn_save_settings"
             android:layout_width="match_parent"
-            android:layout_height="55dp"
-            android:backgroundTint="#007AFF"
+            android:layout_height="52dp"
+            android:backgroundTint="#6C5CE7"
             android:text="설정 저장"
             android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:stateListAnimator="@null"
+            app:cornerRadius="14dp" />
 
     </LinearLayout>
 </ScrollView>

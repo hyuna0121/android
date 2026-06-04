@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
@@ -29,7 +30,6 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 public class ProfileActivity extends AppCompatActivity {
 
     private int currentUserId = -1;
-    private TextView tvCurrentVoice;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,11 +44,6 @@ public class ProfileActivity extends AppCompatActivity {
             startActivity(new Intent(this, ViewerSettingActivity.class));
         });
 
-        LinearLayout btnTtsVoice = findViewById(R.id.btn_tts_voice);
-        btnTtsVoice.setOnClickListener(v -> {
-            startActivity(new Intent(this, TtsVoiceActivity.class));
-        });
-
         LinearLayout btnLogout = findViewById(R.id.btn_logout);
         btnLogout.setOnClickListener(v -> {
             SharedPreferences.Editor editor = prefs.edit();
@@ -60,15 +55,16 @@ public class ProfileActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-        tvCurrentVoice = findViewById(R.id.tv_current_voice);
-
-        ImageView ivHome = findViewById(R.id.iv_home);
-        ivHome.setOnClickListener(v -> {
+        View.OnClickListener goToHome = v -> {
             Intent intent = new Intent(ProfileActivity.this, MainActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             startActivity(intent);
             finish();
-        });
+        };
+        ImageView ivHome = findViewById(R.id.iv_home);
+        ivHome.setOnClickListener(goToHome);
+        View navHome = findViewById(R.id.nav_home);
+        if (navHome != null) navHome.setOnClickListener(goToHome);
 
         FloatingActionButton fabAdd = findViewById(R.id.fab_add);
         fabAdd.setOnClickListener(v -> showNameInputDialog());
@@ -77,11 +73,16 @@ public class ProfileActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // TtsVoiceActivity 에서 돌아왔을 때 현재 음성 표시 갱신
-        UserSetting setting = AppDatabase.getInstance(this)
-                .userDao().getUserSetting(currentUserId);
-        if (setting != null && tvCurrentVoice != null) {
-            tvCurrentVoice.setText(setting.ttsVoice != null ? setting.ttsVoice : "Cherry");
+
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        String email = prefs.getString("user_email", "");
+
+        TextView tvEmail = findViewById(R.id.tv_user_email);
+        TextView tvAvatar = findViewById(R.id.tv_avatar);
+
+        if (tvEmail != null) tvEmail.setText(email);
+        if (tvAvatar != null && !email.isEmpty()) {
+            tvAvatar.setText(String.valueOf(email.charAt(0)).toUpperCase());
         }
     }
 
