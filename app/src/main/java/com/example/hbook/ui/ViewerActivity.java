@@ -1,5 +1,6 @@
 package com.example.hbook.ui;
 
+import android.app.Dialog;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -15,12 +16,20 @@ import android.text.TextPaint;
 import android.util.Base64;
 import android.util.Log;
 import android.util.TypedValue;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.view.Window;
+import android.widget.ArrayAdapter;
+import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.res.ResourcesCompat;
@@ -66,12 +75,51 @@ public class ViewerActivity extends AppCompatActivity {
 
     private static final String TAG = "ViewerActivity";
 
+    // 음성 모델 정의
+    private static final String VOICE_ANDROID = "android";
+
+    private static class VoiceOption {
+        final String id;       // ttsVoice 저장값 ("android", "Cherry", ...)
+        final String name;     // 표시 이름
+        final boolean isAi;   // AI 뱃지 표시 여부
+        final String tags;    // 특징 태그 (AI만)
+
+        VoiceOption(String id, String name, boolean isAi, String tags) {
+            this.id = id;
+            this.name = name;
+            this.isAi = isAi;
+            this.tags = tags;
+        }
+    }
+
+    private static final List<VoiceOption> VOICE_OPTIONS = new ArrayList<VoiceOption>() {{
+        add(new VoiceOption(VOICE_ANDROID, "Android TTS", false, ""));
+        add(new VoiceOption("Cherry", "Cherry", true, "#차분한 #부드러운 #여성"));
+        add(new VoiceOption("Ethan", "Ethan", true, "#낮은 #안정적인 #남성"));
+        add(new VoiceOption("Serena", "Serena", true, "#밝은 #명확한 #여성"));
+        add(new VoiceOption("Chelsie", "Chelsie", true, "#따뜻한 #자연스러운 #여성"));
+    }};
+
     // UI
     private View topBar;
     private View bottomBar;
     private ImageView btnTtsPlay;
+    private TextView btnListen;
     private ViewPager2 viewPager;
 
+    private View ttsPlayerSheet;
+    private TextView tvTtsTitle;
+    private TextView tvCurrentVoice;
+    private TextView tvTtsSpeed;
+    private LinearLayout btnVoiceSelect;
+    private LinearLayout btnSpeedSelect;
+    private ImageButton btnTtsPlaySheet;
+    private ImageButton btnTtsPrev;
+    private ImageButton btnTtsNext;
+    private TextView btnTtsClose;
+
+
+    private boolean isTtsPlayerMode = false;
     private boolean isTopBarVisible = true;
     private boolean isBottomBarVisible = true;
 
@@ -83,6 +131,7 @@ public class ViewerActivity extends AppCompatActivity {
     private int currentUserId = -1;
     private int userFontColor = 0xFF000000;
     private String fullText = "";
+    private String currentBookName = "";
 
     private final List<Integer> viewerToDb = new ArrayList<>();
     private final List<Integer> pageStartIndex = new ArrayList<>();
@@ -92,6 +141,7 @@ public class ViewerActivity extends AppCompatActivity {
     private int currentDbIdx = 0;
     private int currentViewerIdx = 0;
     private boolean isPlaying = false;
+    private float ttsSpeed = 1.0f;
 
     private TextToSpeech androidTts;
     private boolean isAndroidTtsReady = false;
@@ -104,9 +154,13 @@ public class ViewerActivity extends AppCompatActivity {
     private ApiService apiService;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+    private Call<TtsResponse> pendingTtsCall = null;
+    private boolean isLoadingTts = false;
+    private View loadingOverlay = null;
+
     // 하이라이팅
     private List<TimestampEntry> currentTimestamps = new ArrayList<>();
-    private final Handler  highlightHandler  = new Handler(Looper.getMainLooper());
+    private final Handler highlightHandler = new Handler(Looper.getMainLooper());
     private Runnable highlightRunnable = null;
 
     private static class WordToken {
@@ -171,14 +225,29 @@ public class ViewerActivity extends AppCompatActivity {
         bottomBar = findViewById(R.id.bottom_bar);
         btnTtsPlay = findViewById(R.id.btn_tts_play);
         TextView tvBack = findViewById(R.id.tv_back);
+        ttsPlayerSheet = findViewById(R.id.tts_player_sheet);
+        tvTtsTitle = findViewById(R.id.tv_tts_title);
+        tvCurrentVoice = findViewById(R.id.tv_current_voice);
+        tvTtsSpeed = findViewById(R.id.tv_tts_speed);
+        btnVoiceSelect = findViewById(R.id.btn_voice_select);
+        btnSpeedSelect = findViewById(R.id.btn_speed_select);
+        btnTtsPlaySheet = findViewById(R.id.btn_tts_play_sheet);
+        btnTtsPrev = findViewById(R.id.btn_tts_prev);
+        btnTtsNext = findViewById(R.id.btn_tts_next);
+        btnTtsClose = findViewById(R.id.btn_tts_close);
+        loadingOverlay = findViewById(R.id.loading_overlay);
         TextView tvBookTitle = findViewById(R.id.tv_viewer_title);
+
+        currentUserSetting.ttsVoice = VOICE_ANDROID;
 
         tvBack.setOnClickListener(v -> finish());
 
         // 데이터 받기
         int bookId = getIntent().getIntExtra("BOOK_ID", -1);
-        String bookName = getIntent().getStringExtra("BOOK_NAME");
-        if (bookName != null) tvBookTitle.setText(bookName);
+        currentBookName = getIntent().getStringExtra("BOOK_NAME") != null
+                ? getIntent().getStringExtra("BOOK_NAME") : "";
+        if (!currentBookName.isEmpty()) tvBookTitle.setText(currentBookName);
+        tvTtsTitle.setText(currentBookName);
 
         // DB에서 페이지 목록 로드
         if (bookId != -1) {
@@ -274,7 +343,8 @@ public class ViewerActivity extends AppCompatActivity {
 
         Gson gson = new GsonBuilder()
                 .registerTypeAdapter(
-                        new TypeToken<List<TimestampEntry>>(){}.getType(),
+                        new TypeToken<List<TimestampEntry>>() {
+                        }.getType(),
                         (JsonDeserializer<List<TimestampEntry>>) (json, typeOfT, context) -> {
                             List<TimestampEntry> list = new ArrayList<>();
                             for (JsonElement el : json.getAsJsonArray()) {
@@ -294,20 +364,266 @@ public class ViewerActivity extends AppCompatActivity {
 
         // ── TTS 재생 버튼 ────────────────────────────────────────────────────
         btnTtsPlay.setOnClickListener(v -> {
+            if (isTtsPlayerMode) {
+                if (isPlaying) {
+                    stopPlayback();
+                } else {
+                    currentViewerIdx = viewPager.getCurrentItem();
+                    currentDbIdx = viewerToDb.isEmpty() ? 0
+                            : viewerToDb.get(Math.min(currentViewerIdx, viewerToDb.size() - 1));
+                    setPlayingState(true);
+                    speakCurrentDbPage();
+                }
+            } else {
+                enterTtsPlayerMode();
+            }
+        });
+
+        if (btnListen != null) btnListen.setVisibility(View.GONE);
+
+        // TTS 플레이어 시트 버튼들
+        btnTtsClose.setOnClickListener(v -> exitTtsPlayerMode());
+
+        btnTtsPlaySheet.setOnClickListener(v -> {
             if (isPlaying) {
                 stopPlayback();
             } else {
-                // 현재 화면 페이지에서 재생 시작
                 currentViewerIdx = viewPager.getCurrentItem();
-                currentDbIdx = viewerToDb.isEmpty() ? 0 : viewerToDb.get(Math.min(currentViewerIdx, viewerToDb.size() - 1));
+                currentDbIdx = viewerToDb.isEmpty() ? 0
+                        : viewerToDb.get(Math.min(currentViewerIdx, viewerToDb.size() - 1));
                 setPlayingState(true);
                 speakCurrentDbPage();
             }
         });
 
-        // 화면 터치 시 상단·하단 바 토글
-        viewPager.setOnClickListener(v -> toggleBars());
-        // ────────────────────────────────────────────────────────────────────
+        btnTtsPrev.setOnClickListener(v -> {
+            if (currentDbIdx > 0) {
+                currentDbIdx--;
+                if (isPlaying) speakCurrentDbPage();
+                else {
+                    int targetViewer = getFirstViewerIdxForDbIdx(currentDbIdx);
+                    viewPager.setCurrentItem(targetViewer, true);
+                }
+            }
+        });
+
+        btnTtsNext.setOnClickListener(v -> {
+            if (currentDbIdx < dbPages.size() - 1) {
+                currentDbIdx++;
+                if (isPlaying) speakCurrentDbPage();
+                else {
+                    int targetViewer = getFirstViewerIdxForDbIdx(currentDbIdx);
+                    viewPager.setCurrentItem(targetViewer, true);
+                }
+            }
+        });
+
+        // 음성 선택 버튼
+        btnVoiceSelect.setOnClickListener(v -> showVoiceSelectDialog());
+
+        // 속도 선택 버튼
+        btnSpeedSelect.setOnClickListener(v -> showSpeedSelectDialog());
+
+        // 현재 저장된 목소리로 표시 초기화
+        updateVoiceLabel();
+    }
+
+    private void enterTtsPlayerMode() {
+        isTtsPlayerMode = true;
+
+        // 기존 바 숨기기
+        topBar.animate().translationY(-topBar.getHeight()).alpha(0f).setDuration(200)
+                .withEndAction(() -> topBar.setVisibility(View.GONE));
+        bottomBar.animate().translationY(bottomBar.getHeight()).alpha(0f).setDuration(200)
+                .withEndAction(() -> bottomBar.setVisibility(View.GONE));
+        isTopBarVisible = isBottomBarVisible = false;
+
+        // TTS 플레이어 시트 표시
+        ttsPlayerSheet.setVisibility(View.VISIBLE);
+        ttsPlayerSheet.post(() -> {
+            int sheetH = ttsPlayerSheet.getHeight();
+            ttsPlayerSheet.setTranslationY(sheetH);
+            ttsPlayerSheet.animate().translationY(0).alpha(1f).setDuration(250).start();
+        });
+
+        // 현재 페이지부터 바로 재생
+        currentViewerIdx = viewPager.getCurrentItem();
+        currentDbIdx = viewerToDb.isEmpty() ? 0
+                : viewerToDb.get(Math.min(currentViewerIdx, viewerToDb.size() - 1));
+        setPlayingState(true);
+        speakCurrentDbPage();
+    }
+
+    private boolean isTtsSheetVisible = true;
+
+    private void toggleTtsSheet() {
+        int sheetH = ttsPlayerSheet.getHeight();
+        if (sheetH == 0) sheetH = ttsPlayerSheet.getMeasuredHeight();
+        if (sheetH == 0) sheetH = 300; // dp가 아닌 px 최소 fallback
+
+        if (isTtsSheetVisible) {
+            final int h = sheetH;
+            ttsPlayerSheet.animate().translationY(h)
+                    .alpha(0f).setDuration(200)
+                    .withEndAction(() -> ttsPlayerSheet.setVisibility(View.INVISIBLE))
+                    .start();
+            isTtsSheetVisible = false;
+        } else {
+            ttsPlayerSheet.setVisibility(View.VISIBLE);
+            ttsPlayerSheet.animate().translationY(0).alpha(1f).setDuration(200).start();
+            isTtsSheetVisible = true;
+        }
+    }
+
+    private void exitTtsPlayerMode() {
+        isTtsPlayerMode = false;
+        isTtsSheetVisible = true;
+        stopPlayback();
+
+        ttsPlayerSheet.animate().translationY(ttsPlayerSheet.getHeight()).alpha(0f)
+                .setDuration(200).withEndAction(() -> ttsPlayerSheet.setVisibility(View.GONE)).start();
+
+        // 기존 바 복원
+        topBar.setVisibility(View.VISIBLE);
+        topBar.animate().translationY(0).alpha(1f).setDuration(200);
+        bottomBar.setVisibility(View.VISIBLE);
+        bottomBar.animate().translationY(0).alpha(1f).setDuration(200);
+        isTopBarVisible = isBottomBarVisible = true;
+    }
+
+    private void showVoiceSelectDialog() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setContentView(R.layout.dialog_voice_select);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setLayout(
+                    (int) (getResources().getDisplayMetrics().widthPixels * 0.88),
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+
+        ListView lv = dialog.findViewById(R.id.lv_voices);
+        TextView btnCancel = dialog.findViewById(R.id.btn_voice_cancel);
+        TextView btnConfirm = dialog.findViewById(R.id.btn_voice_confirm);
+
+        String currentVoiceId = (currentUserSetting.ttsVoice != null)
+                ? currentUserSetting.ttsVoice : "Cherry";
+        final String[] selectedId = {currentVoiceId};
+
+        VoiceAdapter adapter = new VoiceAdapter(selectedId, currentVoiceId);
+        lv.setAdapter(adapter);
+
+        lv.setOnItemClickListener((parent, view, position, id) -> {
+            selectedId[0] = VOICE_OPTIONS.get(position).id;
+            adapter.notifyDataSetChanged();
+        });
+
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+
+        btnConfirm.setOnClickListener(v -> {
+            String chosen = selectedId[0];
+            if (!chosen.equals(currentUserSetting.ttsVoice)) {
+                // 진행 중인 Qwen 서버 요청 즉시 취소
+                cancelPendingTtsCall();
+                // 재생 중이었으면 완전히 정지
+                stopPlayback();
+
+                currentUserSetting.ttsVoice = chosen;
+                AppDatabase.getInstance(this).userDao().updateUserSetting(currentUserSetting);
+                updateVoiceLabel();
+            }
+            dialog.dismiss();
+        });
+
+        dialog.show();
+    }
+
+    private class VoiceAdapter extends ArrayAdapter<VoiceOption> {
+        private final String[] selectedId;
+
+        VoiceAdapter(String[] selectedId, String currentId) {
+            super(ViewerActivity.this, R.layout.item_voice, VOICE_OPTIONS);
+            this.selectedId = selectedId;
+        }
+
+        @NonNull
+        @Override
+        public View getView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
+            if (convertView == null)
+                convertView = LayoutInflater.from(getContext())
+                        .inflate(R.layout.item_voice, parent, false);
+
+            VoiceOption opt = VOICE_OPTIONS.get(position);
+            TextView tvName = convertView.findViewById(R.id.tv_voice_name);
+            TextView tvTags = convertView.findViewById(R.id.tv_voice_tags);
+            TextView tvBadge = convertView.findViewById(R.id.tv_ai_badge);
+            ImageView ivCheck = convertView.findViewById(R.id.iv_voice_check);
+
+            tvName.setText(opt.name);
+
+            if (opt.isAi) {
+                tvBadge.setVisibility(View.VISIBLE);
+                tvTags.setVisibility(View.VISIBLE);
+                tvTags.setText(opt.tags);
+            } else {
+                tvBadge.setVisibility(View.GONE);
+                tvTags.setVisibility(View.GONE);
+            }
+
+            boolean isSelected = opt.id.equals(selectedId[0]);
+            ivCheck.setVisibility(isSelected ? View.VISIBLE : View.GONE);
+
+            // 선택된 항목 배경 강조
+            convertView.setBackgroundColor(
+                    isSelected ? 0xFFF0F4FF : 0xFFFFFFFF);
+
+            return convertView;
+        }
+    }
+
+    private void updateVoiceLabel() {
+        String voiceId = (currentUserSetting != null && currentUserSetting.ttsVoice != null)
+                ? currentUserSetting.ttsVoice : "Cherry";
+        String displayName = voiceId;
+        for (VoiceOption opt : VOICE_OPTIONS) {
+            if (opt.id.equals(voiceId)) {
+                displayName = opt.name;
+                break;
+            }
+        }
+        if (tvCurrentVoice != null) tvCurrentVoice.setText(displayName);
+    }
+
+    private void showSpeedSelectDialog() {
+        float[] speeds = {0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
+        String[] labels = {"0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "2.0x"};
+
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("재생 속도")
+                .setItems(labels, (dlg, which) -> {
+                    ttsSpeed = speeds[which];
+                    tvTtsSpeed.setText(labels[which]);
+
+                    if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+                        try {
+                            mediaPlayer.setPlaybackParams(
+                                    mediaPlayer.getPlaybackParams().setSpeed(ttsSpeed));
+                        } catch (Exception e) {
+                            Log.e(TAG, "MediaPlayer 배속 적용 실패: " + e.getMessage());
+                        }
+                    }
+
+                    if (androidTts != null && androidTts.isSpeaking() && isPlaying) {
+                        androidTts.stop();
+                        if (currentDbIdx < dbPages.size()) {
+                            String text = dbPages.get(currentDbIdx).extractedText;
+                            if (text != null && !text.isEmpty()) {
+                                speakWithAndroidTts(text);
+                            }
+                        }
+                    }
+                })
+                .show();
     }
 
     private void speakCurrentDbPage() {
@@ -315,7 +631,7 @@ public class ViewerActivity extends AppCompatActivity {
         if (currentDbIdx >= dbPages.size()) {
             // 모든 DB 페이지 재생 완료
             setPlayingState(false);
-            currentDbIdx     = 0;
+            currentDbIdx = 0;
             currentViewerIdx = 0;
             if (pageAdapter != null) pageAdapter.clearHighlight();
             return;
@@ -332,6 +648,13 @@ public class ViewerActivity extends AppCompatActivity {
 
         String voice = (currentUserSetting != null && currentUserSetting.ttsVoice != null)
                 ? currentUserSetting.ttsVoice : "Cherry";
+
+        if (VOICE_ANDROID.equals(voice)) {
+            String text = page.extractedText != null ? page.extractedText : "";
+            speakWithAndroidTts(text);
+            return;
+        }
+
         String expectedPath = getFilesDir().getAbsolutePath()
                 + "/tts_book" + page.bookId
                 + "_page" + page.pageNumber
@@ -356,7 +679,8 @@ public class ViewerActivity extends AppCompatActivity {
                     }
                     reader.close();
                     cachedTs = new Gson().fromJson(sb.toString(),
-                            new TypeToken<List<TimestampEntry>>(){}.getType());
+                            new TypeToken<List<TimestampEntry>>() {
+                            }.getType());
                 } catch (Exception e) {
                     Log.e(TAG, "timestamps 로드 실패: " + e.getMessage());
                 }
@@ -393,6 +717,7 @@ public class ViewerActivity extends AppCompatActivity {
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setDataSource(filePath);
             mediaPlayer.prepare();
+            mediaPlayer.setPlaybackParams(mediaPlayer.getPlaybackParams().setSpeed(ttsSpeed));
             mediaPlayer.setOnCompletionListener(mp ->
                     mainHandler.post(this::advanceToNextDbPage));
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
@@ -431,6 +756,7 @@ public class ViewerActivity extends AppCompatActivity {
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setDataSource(filePath);
             mediaPlayer.prepare();
+            mediaPlayer.setPlaybackParams(mediaPlayer.getPlaybackParams().setSpeed(ttsSpeed));
             mediaPlayer.setOnCompletionListener(mp -> mainHandler.post(() -> {
                 stopHighlightPolling();
                 if (pageAdapter != null) pageAdapter.clearHighlight();
@@ -469,10 +795,16 @@ public class ViewerActivity extends AppCompatActivity {
         TtsRequest req = new TtsRequest(text, instruction, page.pageId,
                 currentUserSetting != null ? currentUserSetting.ttsVoice : "Cherry");
 
-        apiService.generateTts(req).enqueue(new Callback<TtsResponse>() {
+        setLoadingState(true);
+
+        pendingTtsCall = apiService.generateTts(req);
+        pendingTtsCall.enqueue(new Callback<TtsResponse>() {
             @Override
             public void onResponse(@NonNull Call<TtsResponse> call,
                                    @NonNull Response<TtsResponse> response) {
+                if (call.isCanceled()) return;
+                setLoadingState(false);
+
                 if (!isPlaying) return;
 
                 if (response.isSuccessful()
@@ -498,8 +830,8 @@ public class ViewerActivity extends AppCompatActivity {
                             // flush + close 명시적으로
                             FileOutputStream fos = new FileOutputStream(audioFile);
                             fos.write(audioBytes);
-                            fos.flush();   // ← 추가
-                            fos.close();   // ← try-with-resources 대신 명시적 close
+                            fos.flush();
+                            fos.close();
 
                             // WAV 저장 완료 확인
                             if (!audioFile.exists() || audioFile.length() == 0) {
@@ -541,7 +873,8 @@ public class ViewerActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(@NonNull Call<TtsResponse> call, @NonNull Throwable t) {
-                Log.e(TAG, "TTS 서버 요청 실패: " + t.getMessage());
+                if (call.isCanceled()) return;
+                setLoadingState(false);
                 mainHandler.post(() -> speakWithAndroidTts(text));
             }
         });
@@ -551,9 +884,12 @@ public class ViewerActivity extends AppCompatActivity {
         if (!isAndroidTtsReady || androidTts == null || text.isEmpty()) return;
 
         // arousal → speechRate
-        float speechRate = 1.0f + (avgArousal * 0.5f);
-        if (avgValence < -0.5f) speechRate -= (-avgValence - 0.5f) * 0.3f;
-        speechRate = Math.max(0.6f, Math.min(1.6f, speechRate));
+        float emotionRate = 1.0f + (avgArousal * 0.5f);
+        if (avgValence < -0.5f) emotionRate -= (-avgValence - 0.5f) * 0.3f;
+        emotionRate = Math.max(0.6f, Math.min(1.6f, emotionRate));
+
+        float clampedEmotion = Math.max(0.8f, Math.min(1.2f, emotionRate));
+        float finalRate = Math.max(0.5f, Math.min(2.5f, ttsSpeed * clampedEmotion));
 
         // valence → pitch
         float pitch = 1.0f + (avgValence * 0.35f);
@@ -564,10 +900,10 @@ public class ViewerActivity extends AppCompatActivity {
         float volume = 0.75f + (avgDominance * 0.25f);
         volume = Math.max(0.5f, Math.min(1.0f, volume));
 
-        androidTts.setSpeechRate(speechRate);
+        androidTts.setSpeechRate(finalRate);
         androidTts.setPitch(pitch);
 
-        android.os.Bundle params = new android.os.Bundle();
+        Bundle params = new Bundle();
         params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume);
 
         androidTts.speak(text, TextToSpeech.QUEUE_FLUSH, params, "db_" + currentDbIdx);
@@ -610,11 +946,29 @@ public class ViewerActivity extends AppCompatActivity {
 
     private void stopPlayback() {
         setPlayingState(false);
+        cancelPendingTtsCall();
+        setLoadingState(false);
         stopHighlightPolling();
         currentTimestamps.clear();
         releaseMediaPlayer();
         if (androidTts != null) androidTts.stop();
         if (pageAdapter != null) pageAdapter.clearHighlight();
+    }
+
+    private void cancelPendingTtsCall() {
+        if (pendingTtsCall != null && !pendingTtsCall.isCanceled()) {
+            pendingTtsCall.cancel();
+            Log.d(TAG, "진행 중인 TTS 요청 취소");
+        }
+        pendingTtsCall = null;
+    }
+
+    private void setLoadingState(boolean loading) {
+        isLoadingTts = loading;
+        mainHandler.post(() -> {
+            if (loadingOverlay != null)
+                loadingOverlay.setVisibility(loading ? View.VISIBLE : View.GONE);
+        });
     }
 
     private void releaseMediaPlayer() {
@@ -629,9 +983,9 @@ public class ViewerActivity extends AppCompatActivity {
 
     private void setPlayingState(boolean playing) {
         isPlaying = playing;
-        btnTtsPlay.setImageResource(
-                playing ? android.R.drawable.ic_media_pause
-                        : android.R.drawable.ic_media_play);
+        int icon = playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
+        if (btnTtsPlay != null) btnTtsPlay.setImageResource(icon);
+        if (btnTtsPlaySheet != null) btnTtsPlaySheet.setImageResource(icon);
     }
 
     private int getFirstViewerIdxForDbIdx(int dbIdx) {
@@ -668,14 +1022,16 @@ public class ViewerActivity extends AppCompatActivity {
                 baseFace = ResourcesCompat.getFont(this, R.font.nanum_square_round);
             else if ("MARU".equals(currentUserSetting.fontFamily))
                 baseFace = ResourcesCompat.getFont(this, R.font.maruburi);
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         paint.setTypeface(Typeface.create(baseFace,
                 currentUserSetting.isBold ? Typeface.BOLD : Typeface.NORMAL));
 
         int padding = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, 24f, getResources().getDisplayMetrics());
-        int availableWidth  = viewPager.getWidth()  - (padding * 2);
+        int availableWidth = viewPager.getWidth() - (padding * 2);
         int availableHeight = viewPager.getHeight() - (padding * 2);
 
         StaticLayout layout = StaticLayout.Builder
@@ -696,11 +1052,11 @@ public class ViewerActivity extends AppCompatActivity {
             acc += (p.extractedText != null ? p.extractedText.length() : 0) + 2; // +2 = "\n\n"
         }
 
-        int lineCount   = layout.getLineCount();
+        int lineCount = layout.getLineCount();
         int currentLine = 0;
 
         while (currentLine < lineCount) {
-            int startLine  = currentLine;
+            int startLine = currentLine;
             int pageHeight = 0;
 
             while (currentLine < lineCount) {
@@ -711,7 +1067,7 @@ public class ViewerActivity extends AppCompatActivity {
             }
 
             int startOffset = layout.getLineStart(startLine);
-            int endOffset   = layout.getLineEnd(currentLine - 1);
+            int endOffset = layout.getLineEnd(currentLine - 1);
 
             pageStartIndex.add(startOffset);
             pages.add(text.substring(startOffset, endOffset));
@@ -729,13 +1085,16 @@ public class ViewerActivity extends AppCompatActivity {
             viewerToDb.add(dbIdx);
         }
 
-        pageAdapter = new PageAdapter(pages, currentUserSetting, fontColor, this::toggleBars);
+        pageAdapter = new PageAdapter(pages, currentUserSetting, fontColor, () -> {
+            if (isTtsPlayerMode) {
+                toggleTtsSheet();
+            } else {
+                toggleBars();
+            }
+        });
         viewPager.setAdapter(pageAdapter);
 
         Log.d(TAG, "페이지 분할 완료: 앱화면=" + pages.size() + "페이지, DB=" + dbPages.size() + "페이지");
-        for (int i = 0; i < viewerToDb.size(); i++) {
-            Log.d(TAG, "  앱화면[" + i + "] → DB[" + viewerToDb.get(i) + "]");
-        }
     }
 
     private void toggleBars() {
@@ -771,8 +1130,7 @@ public class ViewerActivity extends AppCompatActivity {
 
         // ── 경로 1: 로컬 파일 재생 ──────────────────────────────
         if (currentPage != null) {
-            String voice = (currentUserSetting != null && currentUserSetting.ttsVoice != null)
-                    ? currentUserSetting.ttsVoice : "Cherry";
+            String voice = currentUserSetting.ttsVoice != null ? currentUserSetting.ttsVoice : "Cherry";
             String expectedPath = getFilesDir().getAbsolutePath()
                     + "/tts_book" + currentPage.bookId
                     + "_page" + currentPage.pageNumber

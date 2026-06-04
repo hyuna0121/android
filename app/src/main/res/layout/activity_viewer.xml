@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -10,6 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- 상단 바 -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/top_bar"
         android:layout_width="match_parent"
@@ -31,7 +33,9 @@
             android:textStyle="bold"
             app:drawableStartCompat="@android:drawable/ic_menu_revert"
             app:drawableTint="#4285F4"
-            app:layout_constraintStart_toStartOf="parent" />
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
 
         <TextView
             android:id="@+id/tv_viewer_title"
@@ -45,8 +49,10 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- 하단 바: 기본 재생 버튼 + 듣기 버튼 -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bottom_bar"
         android:layout_width="match_parent"
@@ -55,6 +61,7 @@
         android:elevation="4dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
+        <!-- 기존 재생 버튼 (Android TTS 즉시 재생) -->
         <ImageView
             android:id="@+id/btn_tts_play"
             android:layout_width="48dp"
@@ -69,5 +76,205 @@
             app:layout_constraintEnd_toEndOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- TTS 플레이어 BottomSheet (기본 GONE, 듣기 버튼 누르면 VISIBLE) -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/tts_player_sheet"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#1A1A1A"
+        android:elevation="8dp"
+        android:visibility="gone"
+        android:paddingTop="12dp"
+        android:paddingBottom="20dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <!-- 듣기 종료 버튼 -->
+        <TextView
+            android:id="@+id/btn_tts_close"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="듣기 종료"
+            android:textColor="#4285F4"
+            android:textSize="14sp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <!-- 책 제목 (상단 중앙) -->
+        <TextView
+            android:id="@+id/tv_tts_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:gravity="center"
+            android:maxLines="1"
+            android:ellipsize="end"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btn_tts_close"
+            app:layout_constraintEnd_toStartOf="@id/btn_tts_bookmark"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp" />
+
+        <!-- 북마크 버튼 자리 (추후 확장용, 현재 invisible) -->
+        <ImageView
+            android:id="@+id/btn_tts_bookmark"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/btn_star_big_off"
+            android:visibility="invisible"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <!-- 구분선 -->
+        <View
+            android:id="@+id/tts_divider"
+            android:layout_width="match_parent"
+            android:layout_height="0.5dp"
+            android:background="#444444"
+            android:layout_marginTop="36dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <!-- 음성 선택 버튼 (민준 > 스타일) -->
+        <LinearLayout
+            android:id="@+id/btn_voice_select"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="12dp"
+            android:paddingBottom="4dp"
+            app:layout_constraintTop_toBottomOf="@id/tts_divider"
+            app:layout_constraintStart_toStartOf="parent">
+
+            <TextView
+                android:id="@+id/tv_current_voice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Cherry"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=" ›"
+                android:textColor="#AAAAAA"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
+        <!-- 속도 표시 (1.0x ∨ 스타일) -->
+        <LinearLayout
+            android:id="@+id/btn_speed_select"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="12dp"
+            android:paddingBottom="4dp"
+            app:layout_constraintTop_toBottomOf="@id/tts_divider"
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <TextView
+                android:id="@+id/tv_tts_speed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1.0x"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=" ∨"
+                android:textColor="#AAAAAA"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
+        <!-- 재생 컨트롤: 이전문장 / 재생·정지 / 다음문장 -->
+        <ImageButton
+            android:id="@+id/btn_tts_prev"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:src="@android:drawable/ic_media_previous"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="#FFFFFF"
+            android:layout_marginTop="8dp"
+            app:layout_constraintTop_toBottomOf="@id/btn_voice_select"
+            app:layout_constraintEnd_toStartOf="@id/btn_tts_play_sheet"
+            android:layout_marginEnd="16dp"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <ImageButton
+            android:id="@+id/btn_tts_play_sheet"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:src="@android:drawable/ic_media_play"
+            android:background="@drawable/bg_rounded_blue"
+            android:padding="14dp"
+            app:tint="#FFFFFF"
+            android:layout_marginTop="8dp"
+            app:layout_constraintTop_toBottomOf="@id/btn_voice_select"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <ImageButton
+            android:id="@+id/btn_tts_next"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:src="@android:drawable/ic_media_next"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="#FFFFFF"
+            android:layout_marginTop="8dp"
+            app:layout_constraintTop_toBottomOf="@id/btn_voice_select"
+            app:layout_constraintStart_toEndOf="@id/btn_tts_play_sheet"
+            android:layout_marginStart="16dp"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Qwen TTS 생성 대기 로딩 오버레이 -->
+    <LinearLayout
+        android:id="@+id/loading_overlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="#CC000000"
+        android:paddingStart="28dp"
+        android:paddingEnd="28dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="20dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ProgressBar
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:indeterminate="true"
+            android:indeterminateTint="#FFFFFF" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="음성 생성 중..."
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:layout_marginTop="10dp" />
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
