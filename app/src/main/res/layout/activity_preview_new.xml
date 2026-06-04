@@ -83,7 +83,8 @@
         android:layout_width="0dp"
         android:layout_height="52dp"
         android:layout_margin="16dp"
-        android:backgroundTint="#4F8EF7"
+        android:backgroundTint="#6C5CE7"
+        app:cornerRadius="14dp"
         android:text="이대로 스캔하기"
         android:textColor="#FFFFFF"
         android:textSize="16sp"
@@ -108,7 +109,7 @@
         <ProgressBar
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:indeterminateTint="#4F8EF7" />
+            android:indeterminateTint="#6C5CE7" />
 
         <TextView
             android:layout_width="wrap_content"

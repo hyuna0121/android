@@ -71,7 +71,7 @@
         <ProgressBar
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:indeterminateTint="#4F8EF7" />
+            android:indeterminateTint="#6C5CE7" />
 
         <TextView
             android:id="@+id/tv_loading"

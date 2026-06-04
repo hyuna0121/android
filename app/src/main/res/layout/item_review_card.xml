@@ -94,7 +94,7 @@
                 android:background="@drawable/bg_button_outline"
                 android:gravity="center"
                 android:text="✎ 꼭짓점 재지정"
-                android:textColor="#4F8EF7"
+                android:textColor="#6C5CE7"
                 android:textSize="13sp" />
 
             <!-- 다시 찍기 -->

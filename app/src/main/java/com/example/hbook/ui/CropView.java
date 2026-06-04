@@ -33,9 +33,9 @@ public class CropView extends View {
     private static final float LINE_WIDTH_DP    = 2f;
     private static final float TOUCH_RADIUS_DP  = 40f;
 
-    private static final int COLOR_HANDLE       = 0xFF4F8EF7;
+    private static final int COLOR_HANDLE       = 0xFF6C5CE7;
     private static final int COLOR_HANDLE_LABEL = 0xFFFFFFFF;
-    private static final int COLOR_LINE         = 0xFF4F8EF7;
+    private static final int COLOR_LINE         = 0xFF6C5CE7;
     private static final int COLOR_DIMMED       = 0x77000000;
 
     // ── 상태 ─────────────────────────────────────────────────────────
