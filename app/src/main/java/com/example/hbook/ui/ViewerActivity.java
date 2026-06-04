@@ -43,6 +43,7 @@ import com.example.hbook.model.TimestampEntry;
 import com.example.hbook.model.TtsRequest;
 import com.example.hbook.model.TtsResponse;
 import com.example.hbook.model.UserSetting;
+import com.example.hbook.network.ApiClient;
 import com.example.hbook.network.ApiService;
 import com.example.hbook.util.EmotionTtsHelper;
 import com.google.gson.Gson;
@@ -330,37 +331,7 @@ public class ViewerActivity extends AppCompatActivity {
             }
         });
 
-        // ── Retrofit 초기화 (폴백 실시간 TTS 요청용) ─────────────────────────────
-        OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(120, TimeUnit.SECONDS)
-                .readTimeout(300, TimeUnit.SECONDS)
-                .writeTimeout(120, TimeUnit.SECONDS)
-                .addInterceptor(chain -> chain.proceed(
-                        chain.request().newBuilder()
-                                .addHeader("ngrok-skip-browser-warning", "true")
-                                .build()))
-                .build();
-
-        Gson gson = new GsonBuilder()
-                .registerTypeAdapter(
-                        new TypeToken<List<TimestampEntry>>() {
-                        }.getType(),
-                        (JsonDeserializer<List<TimestampEntry>>) (json, typeOfT, context) -> {
-                            List<TimestampEntry> list = new ArrayList<>();
-                            for (JsonElement el : json.getAsJsonArray()) {
-                                list.add(context.deserialize(el, TimestampEntry.class));
-                            }
-                            return list;
-                        }
-                )
-                .create();
-
-        apiService = new Retrofit.Builder()
-                .baseUrl("https://perish-impure-hatred.ngrok-free.dev/")
-                .client(client)
-                .addConverterFactory(GsonConverterFactory.create(gson))
-                .build()
-                .create(ApiService.class);
+        apiService = ApiClient.getService(this);
 
         // ── TTS 재생 버튼 ────────────────────────────────────────────────────
         btnTtsPlay.setOnClickListener(v -> {
