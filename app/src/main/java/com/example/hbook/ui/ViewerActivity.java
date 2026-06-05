@@ -161,6 +161,7 @@ public class ViewerActivity extends AppCompatActivity {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private Call<TtsResponse> pendingTtsCall = null;
+    private boolean boldBeforeHighContrast = false;
     private boolean isLoadingTts = false;
     private View loadingOverlay = null;
 
@@ -1218,50 +1219,61 @@ public class ViewerActivity extends AppCompatActivity {
 
     private void showViewerSettingSheet() {
         BottomSheetDialog sheet = new BottomSheetDialog(this);
-        android.view.View v = LayoutInflater.from(this)
+        View v = LayoutInflater.from(this)
                 .inflate(R.layout.bottom_sheet_viewer_setting, null);
         sheet.setContentView(v);
+        final SwitchMaterial switchBold = v.findViewById(R.id.bs_switch_bold);
+        if (switchBold != null) {
+            syncBoldSwitch(switchBold, currentUserSetting.isBold,
+                    "#000000".equals(currentUserSetting.backgroundColor));
+        }
 
-        android.view.View.OnClickListener themeClick = btn -> {
+        View.OnClickListener themeClick = btn -> {
             int id = btn.getId();
-            if      (id == R.id.bs_btn_theme_white)     currentUserSetting.backgroundColor = "#F5F5F5";
-            else if (id == R.id.bs_btn_theme_gray)      currentUserSetting.backgroundColor = "#E0E0E0";
-            else if (id == R.id.bs_btn_theme_dark_gray) currentUserSetting.backgroundColor = "#424242";
-            else if (id == R.id.bs_btn_theme_black)     currentUserSetting.backgroundColor = "#000000";
-            else if (id == R.id.bs_btn_theme_beige)     currentUserSetting.backgroundColor = "#F6F1E5";
-            else if (id == R.id.bs_btn_theme_green)     currentUserSetting.backgroundColor = "#233E3B";
+            boolean wasHighContrast = "#000000".equals(currentUserSetting.backgroundColor);
+
+            if (id == R.id.bs_btn_theme_black) {
+                boldBeforeHighContrast             = currentUserSetting.isBold;
+                currentUserSetting.backgroundColor = "#000000";
+                currentUserSetting.isBold          = true;
+                if (currentUserSetting.fontSize    < 16f)  currentUserSetting.fontSize    = 16f;
+                if (currentUserSetting.lineSpacing < 1.6f) currentUserSetting.lineSpacing = 1.6f;
+                if (switchBold != null) syncBoldSwitch(switchBold, true, true);
+            } else {
+                if (wasHighContrast) {
+                    currentUserSetting.isBold = boldBeforeHighContrast;
+                    if (switchBold != null) syncBoldSwitch(switchBold, boldBeforeHighContrast, false);
+                }
+                if      (id == R.id.bs_btn_theme_white)     currentUserSetting.backgroundColor = "#F5F5F5";
+                else if (id == R.id.bs_btn_theme_gray)      currentUserSetting.backgroundColor = "#E0E0E0";
+                else if (id == R.id.bs_btn_theme_dark_gray) currentUserSetting.backgroundColor = "#424242";
+                else if (id == R.id.bs_btn_theme_beige)     currentUserSetting.backgroundColor = "#F6F1E5";
+                else if (id == R.id.bs_btn_theme_green)     currentUserSetting.backgroundColor = "#233E3B";
+            }
             applyViewerSetting();
+            if (switchBold != null) {
+                switchBold.setOnCheckedChangeListener((b2, c2) -> {
+                    if (!c2 && "#000000".equals(currentUserSetting.backgroundColor)) return;
+                    currentUserSetting.isBold = c2;
+                    applyViewerSetting();
+                });
+            }
         };
+
         int[] themeIds = {R.id.bs_btn_theme_white, R.id.bs_btn_theme_gray,
                 R.id.bs_btn_theme_dark_gray, R.id.bs_btn_theme_black,
                 R.id.bs_btn_theme_beige, R.id.bs_btn_theme_green};
         for (int id : themeIds) {
-            android.view.View btn = v.findViewById(id);
+            View btn = v.findViewById(id);
             if (btn != null) btn.setOnClickListener(themeClick);
         }
 
-        SwitchMaterial switchBold = v.findViewById(R.id.bs_switch_bold);
+        // switchBold 초기 리스너 등록
         if (switchBold != null) {
-            switchBold.setChecked(currentUserSetting.isBold);
             switchBold.setOnCheckedChangeListener((b, checked) -> {
+                if (!checked && "#000000".equals(currentUserSetting.backgroundColor)) return;
                 currentUserSetting.isBold = checked;
                 applyViewerSetting();
-            });
-        }
-
-        TextView tvFontSize = v.findViewById(R.id.bs_tv_font_size);
-        SeekBar sbFontSize  = v.findViewById(R.id.bs_sb_font_size);
-        if (sbFontSize != null) {
-            sbFontSize.setProgress((int)(currentUserSetting.fontSize - 12f));
-            if (tvFontSize != null) tvFontSize.setText((int)currentUserSetting.fontSize + "sp");
-            sbFontSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override public void onStartTrackingTouch(SeekBar s) {}
-                @Override public void onStopTrackingTouch(SeekBar s) {}
-                @Override public void onProgressChanged(SeekBar s, int p, boolean fromUser) {
-                    currentUserSetting.fontSize = 12f + p;
-                    if (tvFontSize != null) tvFontSize.setText((int)currentUserSetting.fontSize + "sp");
-                    applyViewerSetting();
-                }
             });
         }
 
@@ -1301,7 +1313,6 @@ public class ViewerActivity extends AppCompatActivity {
                     .show();
         };
         if (fontRow != null) fontRow.setOnClickListener(fontClickListener);
-        // 텍스트에도 동일 리스너 등록
         View btnFontSelect = v.findViewById(R.id.bs_btn_font_select);
         if (btnFontSelect != null) btnFontSelect.setOnClickListener(fontClickListener);
 
@@ -1309,6 +1320,13 @@ public class ViewerActivity extends AppCompatActivity {
                 AppDatabase.getInstance(this).userDao().updateUserSetting(currentUserSetting)).start());
 
         sheet.show();
+    }
+
+    private void syncBoldSwitch(SwitchMaterial sw, boolean checked, boolean isHighContrast) {
+        sw.setOnCheckedChangeListener(null);
+        sw.setChecked(checked);
+        sw.setEnabled(!isHighContrast);
+        sw.setAlpha(isHighContrast ? 0.5f : 1.0f);
     }
 
     private void applyViewerSetting() {

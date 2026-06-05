@@ -37,6 +37,7 @@ public class ViewerSettingActivity extends AppCompatActivity {
     private SeekBar sbFontSize, sbLineSpacing, sbLetterSpacing;
     private Button btnThemeWhite, btnThemeLightGray, btnThemeDarkGray, btnThemeBlack, btnThemeBeige, btnThemeGreen, btnSaveSettings;
     private RadioButton rbFontDefault, rbFontRidi, rbFontKopub, rbFontNanumBarun, rbFontNanumRound, rbFontMaru;
+    private boolean boldBeforeHighContrast = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,8 +56,6 @@ public class ViewerSettingActivity extends AppCompatActivity {
         currentSetting = AppDatabase.getInstance(this).userDao().getUserSetting(currentUserId);
         if (currentSetting == null) {
             currentSetting = new UserSetting(currentUserId);
-            AppDatabase.getInstance(this).userDao().insertUserSetting(currentSetting);
-            currentSetting = AppDatabase.getInstance(this).userDao().getUserSetting(currentUserId);
         }
 
         initViews();
@@ -117,19 +116,26 @@ public class ViewerSettingActivity extends AppCompatActivity {
 
         // 글씨 굵기
         switchBold.setChecked(currentSetting.isBold);
+
+        updateBoldSwitchState();
     }
 
     private void setupListeners() {
         // 배경색 버튼
         View.OnClickListener themeListener = v -> {
-            if (v.getId() == R.id.btn_theme_white) currentSetting.backgroundColor = "#F5F5F5";
-            else if (v.getId() == R.id.btn_theme_light_gray) currentSetting.backgroundColor = "#E0E0E0";
-            else if (v.getId() == R.id.btn_theme_dark_gray) currentSetting.backgroundColor = "#424242";
-            else if (v.getId() == R.id.btn_theme_black) currentSetting.backgroundColor = "#000000";
-            else if (v.getId() == R.id.btn_theme_beige) currentSetting.backgroundColor = "#F6F1E5";
-            else if (v.getId() == R.id.btn_theme_green) currentSetting.backgroundColor = "#233E3B";
+            int id = v.getId();
+            boolean wasHighContrast = "#000000".equals(currentSetting.backgroundColor);
+
+            if (id == R.id.btn_theme_white)      applyTheme("#F5F5F5", wasHighContrast);
+            else if (id == R.id.btn_theme_light_gray) applyTheme("#E0E0E0", wasHighContrast);
+            else if (id == R.id.btn_theme_dark_gray)  applyTheme("#424242", wasHighContrast);
+            else if (id == R.id.btn_theme_black)  applyHighContrast();
+            else if (id == R.id.btn_theme_beige)  applyTheme("#F6F1E5", wasHighContrast);
+            else if (id == R.id.btn_theme_green)  applyTheme("#233E3B", wasHighContrast);
+
             updatePreview();
         };
+
         btnThemeWhite.setOnClickListener(themeListener);
         btnThemeLightGray.setOnClickListener(themeListener);
         btnThemeDarkGray.setOnClickListener(themeListener);
@@ -150,6 +156,11 @@ public class ViewerSettingActivity extends AppCompatActivity {
 
         // 글씨 굵기 스위치
         switchBold.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (!isChecked && "#000000".equals(currentSetting.backgroundColor)) {
+                switchBold.setChecked(true);
+                Toast.makeText(this, "고대비 모드에서는 굵기를 바꿀 수 없습니다.", Toast.LENGTH_SHORT).show();
+                return;
+            }
             currentSetting.isBold = isChecked;
             updatePreview();
         });
@@ -187,6 +198,42 @@ public class ViewerSettingActivity extends AppCompatActivity {
             Toast.makeText(this, "설정이 저장되었습니다.", Toast.LENGTH_SHORT).show();
             finish();
         });
+    }
+
+    private void applyHighContrast() {
+        // 진입 전 bold 상태 저장
+        boldBeforeHighContrast = currentSetting.isBold;
+
+        currentSetting.backgroundColor = "#000000";
+        currentSetting.isBold          = true;
+        if (currentSetting.fontSize    < 16f) currentSetting.fontSize    = 16f;
+        if (currentSetting.lineSpacing < 1.6f) currentSetting.lineSpacing = 1.6f;
+
+        // UI 동기화
+        switchBold.setChecked(true);
+        sbFontSize.setProgress((int)(currentSetting.fontSize - 12f));
+        sbLineSpacing.setProgress((int)((currentSetting.lineSpacing - 1.0f) / 0.1f));
+        updateBoldSwitchState();
+    }
+
+    private void applyTheme(String bgColor, boolean wasHighContrast) {
+        currentSetting.backgroundColor = bgColor;
+
+        // 고대비에서 일반으로 전환 시 bold 복원
+        if (wasHighContrast) {
+            currentSetting.isBold = boldBeforeHighContrast;
+            switchBold.setChecked(boldBeforeHighContrast);
+        }
+
+        updateBoldSwitchState();
+    }
+
+    private void updateBoldSwitchState() {
+        boolean isHighContrast = "#000000".equals(currentSetting.backgroundColor);
+        // 고대비일 때: 스위치 켜짐 고정, alpha로 비활성화 표시
+        switchBold.setEnabled(!isHighContrast);
+        switchBold.setAlpha(isHighContrast ? 0.5f : 1.0f);
+        if (isHighContrast) switchBold.setChecked(true);
     }
 
     // 변경된 설정값을 미리보기 텍스트 뷰에 반영
