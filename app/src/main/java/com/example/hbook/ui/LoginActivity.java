@@ -30,8 +30,8 @@ import retrofit2.Response;
 
 public class LoginActivity extends AppCompatActivity {
 
-    private EditText    etEmail, etPassword;
-    private Button      btnLogin;
+    private EditText etEmail, etPassword;
+    private Button btnLogin;
     private ProgressBar progressBar;
 
     @Override
@@ -39,10 +39,10 @@ public class LoginActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         // ── 자동 로그인 체크 ──────────────────────────────────────────
-        SharedPreferences prefs   = getSharedPreferences("user_prefs", MODE_PRIVATE);
-        String            token   = prefs.getString("auth_token", null);
-        long              savedAt = prefs.getLong("token_saved_at", 0);
-        long              thirtyDays = 1000L * 60 * 60 * 24 * 30;
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        String token = prefs.getString("auth_token", null);
+        long savedAt = prefs.getLong("token_saved_at", 0);
+        long thirtyDays = 1000L * 60 * 60 * 24 * 30;
 
         if (token != null && (System.currentTimeMillis() - savedAt) < thirtyDays) {
             goToMain();
@@ -51,9 +51,9 @@ public class LoginActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_login);
 
-        etEmail     = findViewById(R.id.et_login_email);
-        etPassword  = findViewById(R.id.et_login_password);
-        btnLogin    = findViewById(R.id.btn_login);
+        etEmail = findViewById(R.id.et_login_email);
+        etPassword = findViewById(R.id.et_login_password);
+        btnLogin = findViewById(R.id.btn_login);
         progressBar = findViewById(R.id.progress_bar);
 
         TextView tvGoToSignup = findViewById(R.id.tv_go_to_signup);
@@ -64,7 +64,7 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void attemptLogin() {
-        String email    = etEmail.getText().toString().trim();
+        String email = etEmail.getText().toString().trim();
         String password = etPassword.getText().toString().trim();
 
         if (email.isEmpty() || password.isEmpty()) {
@@ -93,13 +93,19 @@ public class LoginActivity extends AppCompatActivity {
                                     .putString("user_email", email)
                                     .apply();
 
-                            // 로컬 Room에 UserSetting이 없으면 생성
+                            // 서버에서 받은 설정값으로 내장DB 저장/갱신
                             ExecutorService executor = Executors.newSingleThreadExecutor();
                             executor.execute(() -> {
                                 AppDatabase db = AppDatabase.getInstance(getApplicationContext());
                                 UserSetting existing = db.userDao().getUserSetting(userId);
+
+                                LoginResponse.SettingDto dto = body.getSetting();
+
                                 if (existing == null) {
-                                    db.userDao().insertUserSetting(new UserSetting(userId));
+                                    // 첫 로그인: 서버 설정값으로 생성
+                                    UserSetting s = new UserSetting(userId);
+                                    if (dto != null) applyDto(s, dto);
+                                    db.userDao().insertUserSetting(s);
                                 }
                                 runOnUiThread(() -> goToMain());
                             });
@@ -131,6 +137,17 @@ public class LoginActivity extends AppCompatActivity {
         btnLogin.setEnabled(!on);
         if (progressBar != null)
             progressBar.setVisibility(on ? View.VISIBLE : View.GONE);
+    }
+
+    private void applyDto(UserSetting s, LoginResponse.SettingDto dto) {
+        s.fontSize          = dto.fontSize;
+        s.fontFamily        = dto.fontFamily  != null ? dto.fontFamily        : "DEFAULT";
+        s.lineSpacing       = dto.lineSpacing;
+        s.backgroundColor   = dto.backgroundColor != null ? dto.backgroundColor : "#F5F5F5";
+        s.letterSpacing     = dto.letterSpacing;
+        s.paragraphSpacing  = dto.paragraphSpacing;
+        s.isBold            = dto.isBold;
+        s.ttsVoice          = dto.ttsVoice    != null ? dto.ttsVoice          : "Cherry";
     }
 
     private String hashPassword(String pw) {

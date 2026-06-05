@@ -4,6 +4,7 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.Button;
@@ -23,7 +24,14 @@ import androidx.core.view.WindowInsetsCompat;
 import com.example.hbook.R;
 import com.example.hbook.data.AppDatabase;
 import com.example.hbook.model.UserSetting;
+import com.example.hbook.model.auth.UserSettingRequest;
+import com.example.hbook.network.ApiClient;
 import com.google.android.material.switchmaterial.SwitchMaterial;
+
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class ViewerSettingActivity extends AppCompatActivity {
 
@@ -194,7 +202,10 @@ public class ViewerSettingActivity extends AppCompatActivity {
 
         // 저장 버튼
         btnSaveSettings.setOnClickListener(v -> {
+            // 1. 내장DB 저장
             AppDatabase.getInstance(this).userDao().updateUserSetting(currentSetting);
+            // 2. 서버 저장 (비동기, 실패해도 로컬 저장은 완료)
+            syncSettingToServer(currentSetting);
             Toast.makeText(this, "설정이 저장되었습니다.", Toast.LENGTH_SHORT).show();
             finish();
         });
@@ -270,6 +281,23 @@ public class ViewerSettingActivity extends AppCompatActivity {
             case "#233E3B": textColor = Color.parseColor("#BDD9B9"); break;
         }
         tvPreview.setTextColor(textColor);
+    }
+
+    private void syncSettingToServer(UserSetting setting) {
+        ApiClient.getService(this)
+                .updateSettings(UserSettingRequest.from(setting))
+                .enqueue(new Callback<ResponseBody>() {
+                    @Override
+                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                        if (!response.isSuccessful()) {
+                            Log.w("ViewerSetting", "서버 설정 저장 실패: " + response.code());
+                        }
+                    }
+                    @Override
+                    public void onFailure(Call<ResponseBody> call, Throwable t) {
+                        Log.w("ViewerSetting", "서버 설정 저장 오류: " + t.getMessage());
+                    }
+                });
     }
 
     private abstract class SimpleSeekBarListener implements SeekBar.OnSeekBarChangeListener {

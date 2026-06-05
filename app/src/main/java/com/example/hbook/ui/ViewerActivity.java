@@ -44,6 +44,7 @@ import com.example.hbook.model.TimestampEntry;
 import com.example.hbook.model.TtsRequest;
 import com.example.hbook.model.TtsResponse;
 import com.example.hbook.model.UserSetting;
+import com.example.hbook.model.auth.UserSettingRequest;
 import com.example.hbook.network.ApiClient;
 import com.example.hbook.network.ApiService;
 import com.example.hbook.util.EmotionTtsHelper;
@@ -1316,10 +1317,30 @@ public class ViewerActivity extends AppCompatActivity {
         View btnFontSelect = v.findViewById(R.id.bs_btn_font_select);
         if (btnFontSelect != null) btnFontSelect.setOnClickListener(fontClickListener);
 
-        sheet.setOnDismissListener(d -> new Thread(() ->
-                AppDatabase.getInstance(this).userDao().updateUserSetting(currentUserSetting)).start());
+        sheet.setOnDismissListener(d -> new Thread(() -> {
+            // 내장DB 저장
+            AppDatabase.getInstance(this).userDao().updateUserSetting(currentUserSetting);
+            // 서버 저장 (비동기, 실패해도 로컬 저장은 완료)
+            runOnUiThread(() -> syncSettingToServer(currentUserSetting));
+        }).start());
 
         sheet.show();
+    }
+
+    private void syncSettingToServer(UserSetting setting) {
+        apiService.updateSettings(UserSettingRequest.from(setting))
+                .enqueue(new retrofit2.Callback<okhttp3.ResponseBody>() {
+                    @Override
+                    public void onResponse(retrofit2.Call<okhttp3.ResponseBody> call,
+                                           retrofit2.Response<okhttp3.ResponseBody> response) {
+                        if (!response.isSuccessful())
+                            Log.w(TAG, "서버 설정 저장 실패: " + response.code());
+                    }
+                    @Override
+                    public void onFailure(retrofit2.Call<okhttp3.ResponseBody> call, Throwable t) {
+                        Log.w(TAG, "서버 설정 저장 오류: " + t.getMessage());
+                    }
+                });
     }
 
     private void syncBoldSwitch(SwitchMaterial sw, boolean checked, boolean isHighContrast) {
