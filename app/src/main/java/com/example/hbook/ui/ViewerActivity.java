@@ -145,9 +145,19 @@ public class ViewerActivity extends AppCompatActivity {
     private final List<Integer> dbPageOffsets   = new ArrayList<>();
     private PageAdapter pageAdapter = null;
 
+    private final ViewPager2.OnPageChangeCallback pageChangeCallback =
+            new ViewPager2.OnPageChangeCallback() {
+                @Override
+                public void onPageSelected(int position) {
+                    currentViewerIdx = position;
+                    updatePageIndicator();
+                }
+            };
+
     // TTS 상태
     private int currentDbIdx = 0;
     private int currentViewerIdx = 0;
+    private int bookId = -1;
     private boolean isPlaying = false;
     private float ttsSpeed = 1.0f;
 
@@ -255,7 +265,7 @@ public class ViewerActivity extends AppCompatActivity {
         tvBack.setOnClickListener(v -> finish());
 
         // 데이터 받기
-        int bookId = getIntent().getIntExtra("BOOK_ID", -1);
+        bookId = getIntent().getIntExtra("BOOK_ID", -1);
         currentBookName = getIntent().getStringExtra("BOOK_NAME") != null
                 ? getIntent().getStringExtra("BOOK_NAME") : "";
         if (!currentBookName.isEmpty()) tvBookTitle.setText(currentBookName);
@@ -1134,6 +1144,11 @@ public class ViewerActivity extends AppCompatActivity {
         });
         viewPager.setAdapter(pageAdapter);
 
+        viewPager.unregisterOnPageChangeCallback(pageChangeCallback);
+        viewPager.registerOnPageChangeCallback(pageChangeCallback);
+        restoreReadingPosition();
+        updatePageIndicator();
+
         Log.d(TAG, "페이지 분할 완료: 앱화면=" + pages.size() + "페이지, DB=" + dbPages.size() + "페이지");
     }
 
@@ -1417,7 +1432,38 @@ public class ViewerActivity extends AppCompatActivity {
         setPlayingState(false);
         stopHighlightPolling();
         if (pageAdapter != null) pageAdapter.clearHighlight();
+        saveReadingPosition();
         super.onPause();
+    }
+
+    private void saveReadingPosition() {
+        if (bookId == -1 || pageStartIndex.isEmpty()) return;
+        int curPage = viewPager.getCurrentItem();
+        int offset  = (curPage < pageStartIndex.size()) ? pageStartIndex.get(curPage) : 0;
+        getSharedPreferences("reading_position", MODE_PRIVATE).edit()
+                .putInt("offset_" + bookId, offset)
+                .apply();
+    }
+
+    private void restoreReadingPosition() {
+        if (bookId == -1 || pageStartIndex.isEmpty()) return;
+        int savedOffset = getSharedPreferences("reading_position", MODE_PRIVATE)
+                .getInt("offset_" + bookId, -1);
+        if (savedOffset < 0) return;  // 저장된 위치 없으면 처음부터
+
+        // savedOffset이 속하는 화면 페이지 찾기
+        int targetPage = 0;
+        for (int i = pageStartIndex.size() - 1; i >= 0; i--) {
+            if (savedOffset >= pageStartIndex.get(i)) {
+                targetPage = i;
+                break;
+            }
+        }
+        if (targetPage > 0) {
+            viewPager.setCurrentItem(targetPage, false);
+            currentViewerIdx = targetPage;
+            updatePageIndicator();
+        }
     }
 
     @Override
