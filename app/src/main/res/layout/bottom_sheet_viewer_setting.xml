@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#FFFFFF"
+    android:paddingBottom="24dp"
+    tools:ignore="HardcodedText"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 핸들 -->
+    <View
+        android:layout_width="32dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="12dp"
+        android:background="#DDDDDD" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="보기 설정"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="#111111"
+        android:layout_marginStart="20dp"
+        android:layout_marginBottom="12dp" />
+
+    <!-- ── 배경 테마 ──────────────────────────────────────────────────── -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="배경"
+        android:textSize="11sp"
+        android:textColor="#AAAAAA"
+        android:textAllCaps="true"
+        android:letterSpacing="0.05"
+        android:layout_marginStart="20dp"
+        android:layout_marginBottom="8dp" />
+
+    <!-- 배경 테마: 2행 3열 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:layout_marginBottom="16dp">
+
+        <!-- 1행: 기본 · 그레이 · 다크그레이 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="6dp"
+            android:weightSum="3">
+
+            <Button android:id="@+id/bs_btn_theme_white"
+                android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+                android:layout_marginStart="3dp" android:layout_marginEnd="3dp"
+                android:backgroundTint="#F5F5F5" android:text="기본" android:textColor="#333"
+                android:textSize="13sp" android:stateListAnimator="@null" />
+            <Button android:id="@+id/bs_btn_theme_gray"
+                android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+                android:layout_marginStart="3dp" android:layout_marginEnd="3dp"
+                android:backgroundTint="#E0E0E0" android:text="그레이" android:textColor="#000"
+                android:textSize="13sp" android:stateListAnimator="@null" />
+            <Button android:id="@+id/bs_btn_theme_dark_gray"
+                android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+                android:layout_marginStart="3dp" android:layout_marginEnd="3dp"
+                android:backgroundTint="#424242" android:text="다크그레이" android:textColor="#E0E0E0"
+                android:textSize="11sp" android:stateListAnimator="@null" />
+
+        </LinearLayout>
+
+        <!-- 2행: 블랙 · 베이지 · 다크그린 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:weightSum="3">
+
+            <Button android:id="@+id/bs_btn_theme_black"
+                android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+                android:layout_marginStart="3dp" android:layout_marginEnd="3dp"
+                android:backgroundTint="#000000" android:text="블랙" android:textColor="#FFF"
+                android:textSize="13sp" android:stateListAnimator="@null" />
+            <Button android:id="@+id/bs_btn_theme_beige"
+                android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+                android:layout_marginStart="3dp" android:layout_marginEnd="3dp"
+                android:backgroundTint="#F6F1E5" android:text="베이지" android:textColor="#4E3726"
+                android:textSize="13sp" android:stateListAnimator="@null" />
+            <Button android:id="@+id/bs_btn_theme_green"
+                android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+                android:layout_marginStart="3dp" android:layout_marginEnd="3dp"
+                android:backgroundTint="#233E3B" android:text="다크그린" android:textColor="#BDD9B9"
+                android:textSize="11sp" android:stateListAnimator="@null" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+        android:background="#EEEEEE" android:layout_marginBottom="12dp" />
+
+    <!-- ── 글꼴 ──────────────────────────────────────────────────────── -->
+    <LinearLayout
+        android:id="@+id/bs_font_row"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="?attr/selectableItemBackground">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="글꼴"
+            android:textSize="14sp"
+            android:textColor="#222222" />
+
+        <TextView
+            android:id="@+id/bs_tv_font_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="시스템"
+            android:textSize="13sp"
+            android:textColor="#6C5CE7"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=" ›"
+            android:textColor="#AAAAAA"
+            android:textSize="14sp"
+            android:id="@+id/bs_btn_font_select" />
+
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+        android:background="#EEEEEE"
+        android:layout_marginStart="20dp" android:layout_marginEnd="20dp" android:layout_marginBottom="4dp" />
+
+    <!-- ── 굵게 ──────────────────────────────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="굵게"
+            android:textSize="14sp"
+            android:textColor="#222222" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/bs_switch_bold"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:thumbTint="#6C5CE7"
+            app:trackTint="#D4CCFA" />
+
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+        android:background="#EEEEEE"
+        android:layout_marginStart="20dp" android:layout_marginEnd="20dp" android:layout_marginBottom="4dp" />
+
+    <!-- ── 글자 크기 ─────────────────────────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="4dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="글자 크기"
+                android:textSize="14sp"
+                android:textColor="#222222" />
+
+            <TextView
+                android:id="@+id/bs_tv_font_size"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="18sp"
+                android:textSize="13sp"
+                android:textColor="#6C5CE7"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <SeekBar
+            android:id="@+id/bs_sb_font_size"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:progressTint="#6C5CE7"
+            android:thumbTint="#6C5CE7"
+            android:max="30" />
+
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+        android:background="#EEEEEE"
+        android:layout_marginStart="20dp" android:layout_marginEnd="20dp"
+        android:layout_marginTop="4dp" android:layout_marginBottom="4dp" />
+
+    <!-- ── 줄 간격 ──────────────────────────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="4dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="줄 간격"
+                android:textSize="14sp"
+                android:textColor="#222222" />
+
+            <TextView
+                android:id="@+id/bs_tv_line_spacing"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1.5x"
+                android:textSize="13sp"
+                android:textColor="#6C5CE7"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <SeekBar
+            android:id="@+id/bs_sb_line_spacing"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:progressTint="#6C5CE7"
+            android:thumbTint="#6C5CE7"
+            android:max="20" />
+
+    </LinearLayout>
+
+</LinearLayout>

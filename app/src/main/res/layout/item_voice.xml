@@ -1,15 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="64dp"
     android:orientation="horizontal"
     android:gravity="center_vertical"
     android:paddingStart="20dp"
     android:paddingEnd="16dp"
-    android:background="?attr/selectableItemBackground">
+    android:background="?attr/selectableItemBackground"
+    tools:ignore="HardcodedText,ContentDescription"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- AI 뱃지 (Qwen 목소리만 표시, Android TTS는 GONE) -->
+    <!-- AI 뱃지 -->
     <TextView
         android:id="@+id/tv_ai_badge"
         android:layout_width="wrap_content"
@@ -18,9 +21,9 @@
         android:textSize="10sp"
         android:textColor="#FFFFFF"
         android:textStyle="bold"
-        android:background="#4285F4"
-        android:paddingStart="5dp"
-        android:paddingEnd="5dp"
+        android:background="@drawable/bg_rounded_purple"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
         android:paddingTop="2dp"
         android:paddingBottom="2dp"
         android:layout_marginEnd="10dp"
@@ -52,12 +55,12 @@
 
     </LinearLayout>
 
-    <!-- 선택됨 표시 (체크마크) -->
+    <!-- ic_check_on / ic_check_off 기반 선택 표시 -->
     <ImageView
         android:id="@+id/iv_voice_check"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
-        android:src="@android:drawable/checkbox_on_background"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:src="@drawable/ic_check_off"
         android:visibility="gone" />
 
 </LinearLayout>

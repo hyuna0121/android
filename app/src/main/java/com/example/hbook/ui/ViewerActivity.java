@@ -26,6 +26,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -46,6 +47,8 @@ import com.example.hbook.model.UserSetting;
 import com.example.hbook.network.ApiClient;
 import com.example.hbook.network.ApiService;
 import com.example.hbook.util.EmotionTtsHelper;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonDeserializer;
@@ -105,7 +108,6 @@ public class ViewerActivity extends AppCompatActivity {
     private View topBar;
     private View bottomBar;
     private ImageView btnTtsPlay;
-    private TextView btnListen;
     private ViewPager2 viewPager;
 
     private View ttsPlayerSheet;
@@ -118,6 +120,9 @@ public class ViewerActivity extends AppCompatActivity {
     private ImageButton btnTtsPrev;
     private ImageButton btnTtsNext;
     private TextView btnTtsClose;
+    private TextView tvPageIndicator;
+    private TextView tvTtsPage;
+    private LinearLayout btnViewerSetting;
 
 
     private boolean isTtsPlayerMode = false;
@@ -236,7 +241,10 @@ public class ViewerActivity extends AppCompatActivity {
         btnTtsPrev = findViewById(R.id.btn_tts_prev);
         btnTtsNext = findViewById(R.id.btn_tts_next);
         btnTtsClose = findViewById(R.id.btn_tts_close);
-        loadingOverlay = findViewById(R.id.loading_overlay);
+        loadingOverlay    = findViewById(R.id.loading_overlay);
+        tvPageIndicator   = findViewById(R.id.tv_page_indicator);
+        tvTtsPage         = findViewById(R.id.tv_tts_page);
+        btnViewerSetting  = findViewById(R.id.btn_viewer_setting);
         TextView tvBookTitle = findViewById(R.id.tv_viewer_title);
 
         currentUserSetting.ttsVoice = VOICE_ANDROID;
@@ -350,8 +358,6 @@ public class ViewerActivity extends AppCompatActivity {
             }
         });
 
-        if (btnListen != null) btnListen.setVisibility(View.GONE);
-
         // TTS 플레이어 시트 버튼들
         btnTtsClose.setOnClickListener(v -> exitTtsPlayerMode());
 
@@ -394,6 +400,10 @@ public class ViewerActivity extends AppCompatActivity {
 
         // 속도 선택 버튼
         btnSpeedSelect.setOnClickListener(v -> showSpeedSelectDialog());
+
+        if (btnViewerSetting != null) {
+            btnViewerSetting.setOnClickListener(v -> showViewerSettingSheet());
+        }
 
         // 현재 저장된 목소리로 표시 초기화
         updateVoiceLabel();
@@ -450,6 +460,7 @@ public class ViewerActivity extends AppCompatActivity {
         isTtsPlayerMode = false;
         isTtsSheetVisible = true;
         stopPlayback();
+        if (pageAdapter != null) pageAdapter.clearHighlight();
 
         ttsPlayerSheet.animate().translationY(ttsPlayerSheet.getHeight()).alpha(0f)
                 .setDuration(200).withEndAction(() -> ttsPlayerSheet.setVisibility(View.GONE)).start();
@@ -542,11 +553,12 @@ public class ViewerActivity extends AppCompatActivity {
             }
 
             boolean isSelected = opt.id.equals(selectedId[0]);
-            ivCheck.setVisibility(isSelected ? View.VISIBLE : View.GONE);
+            ivCheck.setVisibility(View.VISIBLE);
+            ivCheck.setImageResource(isSelected ? R.drawable.ic_check_on : R.drawable.ic_check_off);
 
             // 선택된 항목 배경 강조
             convertView.setBackgroundColor(
-                    isSelected ? 0xFFF0F4FF : 0xFFFFFFFF);
+                    isSelected ? 0xFFF0EDFF : 0xFFFFFFFF);
 
             return convertView;
         }
@@ -923,7 +935,6 @@ public class ViewerActivity extends AppCompatActivity {
         currentTimestamps.clear();
         releaseMediaPlayer();
         if (androidTts != null) androidTts.stop();
-        if (pageAdapter != null) pageAdapter.clearHighlight();
     }
 
     private void cancelPendingTtsCall() {
@@ -957,6 +968,15 @@ public class ViewerActivity extends AppCompatActivity {
         int icon = playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
         if (btnTtsPlay != null) btnTtsPlay.setImageResource(icon);
         if (btnTtsPlaySheet != null) btnTtsPlaySheet.setImageResource(icon);
+    }
+
+    private void updatePageIndicator() {
+        if (pageAdapter == null) return;
+        int total = pageAdapter.getPageCount();
+        int current = viewPager.getCurrentItem() + 1;
+        String text = current + " / " + total;
+        if (tvPageIndicator != null) tvPageIndicator.setText(text);
+        if (tvTtsPage != null) tvTtsPage.setText(text);
     }
 
     private int getFirstViewerIdxForDbIdx(int dbIdx) {
@@ -1194,6 +1214,115 @@ public class ViewerActivity extends AppCompatActivity {
             if (charCount > globalOffset) return p;
         }
         return dbPages.get(dbPages.size() - 1);
+    }
+
+    private void showViewerSettingSheet() {
+        BottomSheetDialog sheet = new BottomSheetDialog(this);
+        android.view.View v = LayoutInflater.from(this)
+                .inflate(R.layout.bottom_sheet_viewer_setting, null);
+        sheet.setContentView(v);
+
+        android.view.View.OnClickListener themeClick = btn -> {
+            int id = btn.getId();
+            if      (id == R.id.bs_btn_theme_white)     currentUserSetting.backgroundColor = "#F5F5F5";
+            else if (id == R.id.bs_btn_theme_gray)      currentUserSetting.backgroundColor = "#E0E0E0";
+            else if (id == R.id.bs_btn_theme_dark_gray) currentUserSetting.backgroundColor = "#424242";
+            else if (id == R.id.bs_btn_theme_black)     currentUserSetting.backgroundColor = "#000000";
+            else if (id == R.id.bs_btn_theme_beige)     currentUserSetting.backgroundColor = "#F6F1E5";
+            else if (id == R.id.bs_btn_theme_green)     currentUserSetting.backgroundColor = "#233E3B";
+            applyViewerSetting();
+        };
+        int[] themeIds = {R.id.bs_btn_theme_white, R.id.bs_btn_theme_gray,
+                R.id.bs_btn_theme_dark_gray, R.id.bs_btn_theme_black,
+                R.id.bs_btn_theme_beige, R.id.bs_btn_theme_green};
+        for (int id : themeIds) {
+            android.view.View btn = v.findViewById(id);
+            if (btn != null) btn.setOnClickListener(themeClick);
+        }
+
+        SwitchMaterial switchBold = v.findViewById(R.id.bs_switch_bold);
+        if (switchBold != null) {
+            switchBold.setChecked(currentUserSetting.isBold);
+            switchBold.setOnCheckedChangeListener((b, checked) -> {
+                currentUserSetting.isBold = checked;
+                applyViewerSetting();
+            });
+        }
+
+        TextView tvFontSize = v.findViewById(R.id.bs_tv_font_size);
+        SeekBar sbFontSize  = v.findViewById(R.id.bs_sb_font_size);
+        if (sbFontSize != null) {
+            sbFontSize.setProgress((int)(currentUserSetting.fontSize - 12f));
+            if (tvFontSize != null) tvFontSize.setText((int)currentUserSetting.fontSize + "sp");
+            sbFontSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override public void onStartTrackingTouch(SeekBar s) {}
+                @Override public void onStopTrackingTouch(SeekBar s) {}
+                @Override public void onProgressChanged(SeekBar s, int p, boolean fromUser) {
+                    currentUserSetting.fontSize = 12f + p;
+                    if (tvFontSize != null) tvFontSize.setText((int)currentUserSetting.fontSize + "sp");
+                    applyViewerSetting();
+                }
+            });
+        }
+
+        TextView tvLineSpacing = v.findViewById(R.id.bs_tv_line_spacing);
+        SeekBar sbLineSpacing  = v.findViewById(R.id.bs_sb_line_spacing);
+        if (sbLineSpacing != null) {
+            sbLineSpacing.setProgress((int)((currentUserSetting.lineSpacing - 1.0f) / 0.1f));
+            if (tvLineSpacing != null) tvLineSpacing.setText(String.format("%.1fx", currentUserSetting.lineSpacing));
+            sbLineSpacing.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override public void onStartTrackingTouch(SeekBar s) {}
+                @Override public void onStopTrackingTouch(SeekBar s) {}
+                @Override public void onProgressChanged(SeekBar s, int p, boolean fromUser) {
+                    currentUserSetting.lineSpacing = 1.0f + (p * 0.1f);
+                    if (tvLineSpacing != null) tvLineSpacing.setText(String.format("%.1fx", currentUserSetting.lineSpacing));
+                    applyViewerSetting();
+                }
+            });
+        }
+
+        String[] fontNames = {"시스템","나눔바른고딕","나눔스퀘어라운드","리디바탕","KoPub 바탕","마루부리"};
+        String[] fontKeys  = {"DEFAULT","NANUM_BARUN","NANUM_ROUND","RIDIBATANG","KOPUB_BATANG","MARU"};
+        TextView tvFontName = v.findViewById(R.id.bs_tv_font_name);
+        if (tvFontName != null) {
+            for (int i = 0; i < fontKeys.length; i++)
+                if (fontKeys[i].equals(currentUserSetting.fontFamily)) { tvFontName.setText(fontNames[i]); break; }
+        }
+
+        View fontRow = v.findViewById(R.id.bs_font_row);
+        View.OnClickListener fontClickListener = btn -> {
+            new android.app.AlertDialog.Builder(ViewerActivity.this)
+                    .setTitle("글꼴 선택")
+                    .setItems(fontNames, (d, which) -> {
+                        currentUserSetting.fontFamily = fontKeys[which];
+                        if (tvFontName != null) tvFontName.setText(fontNames[which]);
+                        applyViewerSetting();
+                    })
+                    .show();
+        };
+        if (fontRow != null) fontRow.setOnClickListener(fontClickListener);
+        // 텍스트에도 동일 리스너 등록
+        View btnFontSelect = v.findViewById(R.id.bs_btn_font_select);
+        if (btnFontSelect != null) btnFontSelect.setOnClickListener(fontClickListener);
+
+        sheet.setOnDismissListener(d -> new Thread(() ->
+                AppDatabase.getInstance(this).userDao().updateUserSetting(currentUserSetting)).start());
+
+        sheet.show();
+    }
+
+    private void applyViewerSetting() {
+        viewPager.setBackgroundColor(Color.parseColor(currentUserSetting.backgroundColor));
+        switch (currentUserSetting.backgroundColor) {
+            case "#F5F5F5": userFontColor = Color.parseColor("#333333"); break;
+            case "#E0E0E0": userFontColor = Color.parseColor("#000000"); break;
+            case "#424242": userFontColor = Color.parseColor("#E0E0E0"); break;
+            case "#000000": userFontColor = Color.parseColor("#FFFFFF"); break;
+            case "#F6F1E5": userFontColor = Color.parseColor("#4E3726"); break;
+            case "#233E3B": userFontColor = Color.parseColor("#BDD9B9"); break;
+            default:        userFontColor = Color.BLACK; break;
+        }
+        if (!fullText.isEmpty()) paginateTextAndSetAdapter(fullText, userFontColor);
     }
 
     @Override

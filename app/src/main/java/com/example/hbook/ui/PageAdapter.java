@@ -1,9 +1,13 @@
 package com.example.hbook.ui;
 
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.BackgroundColorSpan;
+import android.text.style.LineBackgroundSpan;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
@@ -33,6 +37,56 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
     private int highlightEnd = -1;
 
     private static final int HIGHLIGHT_COLOR = 0xFFFFE066;
+
+    private static class ThinHighlightSpan implements LineBackgroundSpan {
+        private final int color;
+        private final float textSizeSp;
+        private final Context context;
+
+        ThinHighlightSpan(int color, float textSizeSp, Context context) {
+            this.color       = color;
+            this.textSizeSp  = textSizeSp;
+            this.context     = context;
+        }
+
+        @Override
+        public void drawBackground(Canvas c, Paint p,
+                                   int left, int right, int top, int baseline, int bottom,
+                                   CharSequence text, int start, int end, int lineNum) {
+            float textPx    = TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_SP, textSizeSp,
+                    context.getResources().getDisplayMetrics());
+
+            float halfBar = textPx * 0.6f;   // 글자 크기의 120% / 2
+            float barTop    = baseline - textPx * 0.85f;
+            float barBottom = baseline + textPx * 0.25f;
+
+            // 텍스트가 있는 구간의 실제 너비만 하이라이트 (공백 제외, API 24 호환)
+            String lineText  = text.subSequence(start, end).toString();
+            // 앞 공백 개수
+            int leadingSpaces = 0;
+            while (leadingSpaces < lineText.length()
+                    && Character.isWhitespace(lineText.charAt(leadingSpaces))) leadingSpaces++;
+            // 뒤 공백 개수
+            int trailingSpaces = 0;
+            int len = lineText.length();
+            while (trailingSpaces < len - leadingSpaces
+                    && Character.isWhitespace(lineText.charAt(len - 1 - trailingSpaces))) trailingSpaces++;
+
+            float leadOffset  = leadingSpaces  > 0 ? p.measureText(lineText, 0, leadingSpaces)  : 0;
+            float trailOffset = trailingSpaces > 0 ? p.measureText(lineText, len - trailingSpaces, len) : 0;
+
+            float drawLeft  = left  + leadOffset;
+            float drawRight = right - trailOffset;
+
+            if (drawLeft >= drawRight) return; // 공백만 있는 줄이면 skip
+
+            Paint paint = new Paint();
+            paint.setColor(color);
+            paint.setStyle(Paint.Style.FILL);
+            c.drawRect(drawLeft, barTop, drawRight, barBottom, paint);
+        }
+    }
 
     public interface OnPageClickListener {
         void onPageClick();
@@ -85,7 +139,8 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
         if (position == highlightPage && highlightStart >= 0 && highlightEnd > highlightStart && highlightEnd <= text.length()) {
             SpannableString spannable = new SpannableString(text);
             spannable.setSpan(
-                    new BackgroundColorSpan(HIGHLIGHT_COLOR),
+                    new ThinHighlightSpan(HIGHLIGHT_COLOR, userSetting.fontSize,
+                            holder.itemView.getContext()),
                     highlightStart,
                     highlightEnd,
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -117,12 +172,11 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
         if (chunkText == null || chunkText.isEmpty() || pageList == null) return;
 
         // 공백을 정규화한 뒤 비교 (서버 split 과정에서 공백이 달라질 수 있음)
-        String normalizedChunk = chunkText.trim().replaceAll("\\s+", " ");
+        String normalizedChunk = chunkText.trim();
 
         // 1순위: 현재 페이지에서 검색
         int startPage = Math.max(0, Math.min(currentViewerPage, pageList.size() - 1));
-        String normalizedPage = pageList.get(startPage).replaceAll("\\s+", " ");
-        int idx = normalizedPage.indexOf(normalizedChunk);
+        int idx = pageList.get(startPage).indexOf(normalizedChunk);
         if (idx >= 0) {
             setHighlight(startPage, idx, idx + normalizedChunk.length());
             return;
@@ -131,28 +185,14 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
         // 2순위: 전체 페이지 순회
         for (int p = 0; p < pageList.size(); p++) {
             if (p == startPage) continue; // 이미 위에서 검색함
-            normalizedPage = pageList.get(p).replaceAll("\\s+", " ");
-            idx = normalizedPage.indexOf(normalizedChunk);
+            idx = pageList.get(p).indexOf(normalizedChunk);
             if (idx >= 0) {
                 setHighlight(p, idx, idx + normalizedChunk.length());
                 return;
             }
         }
 
-        // 3순위: 앞 10글자로 부분 매칭 시도 (청크가 페이지 경계에 걸친 경우)
-        String prefix = normalizedChunk.length() > 10
-                ? normalizedChunk.substring(0, 10) : normalizedChunk;
-        for (int p = 0; p < pageList.size(); p++) {
-            normalizedPage = pageList.get(p).replaceAll("\\s+", " ");
-            idx = normalizedPage.indexOf(prefix);
-            if (idx >= 0) {
-                int end = Math.min(idx + normalizedChunk.length(), pageList.get(p).length());
-                setHighlight(p, idx, end);
-                return;
-            }
-        }
-
-        Log.w("PageAdapter", "하이라이트 매칭 실패: [" + normalizedChunk + "]");
+        // 찾지 못하면 하이라이트 유지 (이전 상태 그대로)
     }
 
     public void clearHighlight() {
