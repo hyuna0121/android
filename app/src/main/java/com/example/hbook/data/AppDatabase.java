@@ -15,7 +15,7 @@ import com.example.hbook.model.ReaderLog;
 import com.example.hbook.model.User;
 import com.example.hbook.model.UserSetting;
 
-@Database(entities = {Book.class, Page.class, ReaderLog.class, User.class, UserSetting.class}, version = 10)
+@Database(entities = {Book.class, Page.class, ReaderLog.class, User.class, UserSetting.class}, version = 11)
 public abstract class AppDatabase extends RoomDatabase {
     public abstract LibraryDao libraryDao();
     public abstract UserDao userDao();
@@ -52,13 +52,33 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    static final Migration MIGRATION_10_11 = new Migration(10, 11) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("CREATE TABLE IF NOT EXISTS user_settings_new (" +
+                    "setting_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "user_id INTEGER NOT NULL, " +
+                    "font_size REAL NOT NULL DEFAULT 18.0, " +
+                    "font_family TEXT, " +
+                    "line_spacing REAL NOT NULL DEFAULT 1.5, " +
+                    "background_color TEXT, " +
+                    "letter_spacing REAL NOT NULL DEFAULT 0.05, " +
+                    "paragraph_spacing REAL NOT NULL DEFAULT 1.0, " +
+                    "is_bold INTEGER NOT NULL DEFAULT 0, " +
+                    "tts_voice TEXT DEFAULT 'Cherry')");
+            database.execSQL("INSERT INTO user_settings_new SELECT * FROM user_settings");
+            database.execSQL("DROP TABLE user_settings");
+            database.execSQL("ALTER TABLE user_settings_new RENAME TO user_settings");
+        }
+    };
+
     public static AppDatabase getInstance(Context context) {
         if (INSTANCE == null) {
             INSTANCE = Room.databaseBuilder(context.getApplicationContext(),
-                    AppDatabase.class, "my_ocr_library.db")
+                            AppDatabase.class, "my_ocr_library.db")
                     .allowMainThreadQueries()
-                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
-                    .fallbackToDestructiveMigration()   // 버전 바뀔 시 기존 DB 포맷하고 새 구조로 덮음
+                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                    .fallbackToDestructiveMigration()
                     .build();
         }
         return INSTANCE;

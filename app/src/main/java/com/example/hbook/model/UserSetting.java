@@ -6,13 +6,7 @@ import androidx.room.Entity;
 import androidx.room.ForeignKey;
 import androidx.room.PrimaryKey;
 
-@Entity(tableName = "user_settings",
-        foreignKeys = @ForeignKey(
-                entity = User.class,
-                parentColumns = "user_id",
-                childColumns = "user_id",
-                onDelete = ForeignKey.CASCADE
-        ))
+@Entity(tableName = "user_settings")
 public class UserSetting {
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo(name = "setting_id")
