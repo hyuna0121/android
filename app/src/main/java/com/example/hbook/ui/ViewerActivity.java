@@ -142,6 +142,7 @@ public class ViewerActivity extends AppCompatActivity {
 
     private final List<Integer> viewerToDb = new ArrayList<>();
     private final List<Integer> pageStartIndex = new ArrayList<>();
+    private final List<Integer> dbPageOffsets   = new ArrayList<>();
     private PageAdapter pageAdapter = null;
 
     // TTS 상태
@@ -330,8 +331,54 @@ public class ViewerActivity extends AppCompatActivity {
                     @Override
                     public void onRangeStart(String utteranceId, int start, int end, int frame) {
                         mainHandler.post(() -> {
-                            if (pageAdapter != null && isPlaying) {
-                                pageAdapter.setHighlight(currentWordIdx, start, end);
+                            if (pageAdapter == null || !isPlaying) return;
+
+                            int dbOffset = (currentDbIdx < dbPageOffsets.size())
+                                    ? dbPageOffsets.get(currentDbIdx) : 0;
+                            int absStart = dbOffset + start;
+                            int absEnd   = dbOffset + end;
+
+                            int targetPage = 0;
+                            for (int i = pageStartIndex.size() - 1; i >= 0; i--) {
+                                if (absStart >= pageStartIndex.get(i)) {
+                                    targetPage = i;
+                                    break;
+                                }
+                            }
+
+                            int pageOffset = pageStartIndex.get(targetPage);
+                            int relStart   = absStart - pageOffset;
+                            int nextPageAbsStart = (targetPage + 1 < pageStartIndex.size())
+                                    ? pageStartIndex.get(targetPage + 1) : Integer.MAX_VALUE;
+
+                            // 문장이 페이지 경계를 넘는 경우 처리
+                            if (absEnd > nextPageAbsStart) {
+                                // 현재 페이지: 페이지 끝까지 하이라이트
+                                int pageTextLen = nextPageAbsStart - pageOffset;
+                                pageAdapter.setHighlight(targetPage, relStart, pageTextLen);
+
+                                // 다음 페이지로 이동 + 나머지 범위 하이라이트
+                                int nextPage = targetPage + 1;
+                                if (nextPage < pageStartIndex.size()) {
+                                    final int nextRelEnd = absEnd - pageStartIndex.get(nextPage);
+                                    viewPager.setCurrentItem(nextPage, true);
+                                    currentViewerIdx = nextPage;
+                                    // 페이지 전환 후 하이라이트 (약간의 딜레이로 ViewPager 렌더링 대기)
+                                    mainHandler.postDelayed(() -> {
+                                        if (pageAdapter != null && isPlaying)
+                                            pageAdapter.setHighlight(nextPage, 0, nextRelEnd);
+                                    }, 120);
+                                }
+                            } else {
+                                // 일반적인 경우: 같은 페이지 안에서 하이라이트
+                                int relEnd = absEnd - pageOffset;
+
+                                // 페이지 자동 이동
+                                if (viewPager.getCurrentItem() != targetPage) {
+                                    viewPager.setCurrentItem(targetPage, true);
+                                    currentViewerIdx = targetPage;
+                                }
+                                pageAdapter.setHighlight(targetPage, relStart, relEnd);
                             }
                         });
                     }
@@ -1038,7 +1085,7 @@ public class ViewerActivity extends AppCompatActivity {
 
         // DB 페이지별 시작 오프셋 미리 계산
         // dbPageOffsets.get(i) = i번 DB 페이지가 fullText 에서 시작하는 오프셋
-        List<Integer> dbPageOffsets = new ArrayList<>();
+
         int acc = 0;
         for (Page p : dbPages) {
             dbPageOffsets.add(acc);
