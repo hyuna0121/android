@@ -7,6 +7,7 @@ import android.graphics.Typeface;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.BackgroundColorSpan;
+import android.text.style.ForegroundColorSpan;
 import android.text.style.LineBackgroundSpan;
 import android.util.Log;
 import android.util.TypedValue;
@@ -23,7 +24,9 @@ import com.example.hbook.R;
 import com.example.hbook.model.Page;
 import com.example.hbook.model.UserSetting;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder> {
     private List<String> pageList;
@@ -36,7 +39,26 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
     private int highlightStart = -1;
     private int highlightEnd = -1;
 
-    private static final int HIGHLIGHT_COLOR = 0xFFFFE066;
+    private static final Map<String, Integer> HIGHLIGHT_BG_MAP = new HashMap<String, Integer>() {{
+        put("#F5F5F5", 0xFFFFE066);  // 기본: 노랑
+        put("#E0E0E0", 0xFFFF8C42);  // 그레이: 주황
+        put("#424242", 0xFFA8E6CF);  // 다크그레이: 민트
+        put("#000000", 0xFF00E5FF);  // 고대비(블랙): 시안
+        put("#F6F1E5", 0xFFB5D5A8);  // 베이지: 연녹
+        put("#233E3B", 0xFFFFD166);  // 다크그린: 황금
+    }};
+
+    private static final Map<String, Integer> HIGHLIGHT_FG_MAP = new HashMap<String, Integer>() {{
+        put("#F5F5F5", 0xFF222222);  // 기본
+        put("#E0E0E0", 0xFF111111);  // 그레이
+        put("#424242", 0xFF1A1A1A);  // 다크그레이 (민트 위)
+        put("#000000", 0xFF000000);  // 고대비 (시안 위)
+        put("#F6F1E5", 0xFF2A1A0E);  // 베이지 (연녹 위)
+        put("#233E3B", 0xFF1A1A1A);  // 다크그린 (황금 위)
+    }};
+
+    private static final int HIGHLIGHT_BG_DEFAULT  = 0xFFFFE066;
+    private static final int HIGHLIGHT_FG_DEFAULT = 0xFF222222;
 
     private static class ThinHighlightSpan implements LineBackgroundSpan {
         private final int color;
@@ -44,25 +66,25 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
         private final Context context;
 
         ThinHighlightSpan(int color, float textSizeSp, Context context) {
-            this.color       = color;
-            this.textSizeSp  = textSizeSp;
-            this.context     = context;
+            this.color = color;
+            this.textSizeSp = textSizeSp;
+            this.context = context;
         }
 
         @Override
         public void drawBackground(Canvas c, Paint p,
                                    int left, int right, int top, int baseline, int bottom,
                                    CharSequence text, int start, int end, int lineNum) {
-            float textPx    = TypedValue.applyDimension(
+            float textPx = TypedValue.applyDimension(
                     TypedValue.COMPLEX_UNIT_SP, textSizeSp,
                     context.getResources().getDisplayMetrics());
 
             float halfBar = textPx * 0.6f;   // 글자 크기의 120% / 2
-            float barTop    = baseline - textPx * 0.85f;
+            float barTop = baseline - textPx * 0.85f;
             float barBottom = baseline + textPx * 0.25f;
 
             // 텍스트가 있는 구간의 실제 너비만 하이라이트 (공백 제외, API 24 호환)
-            String lineText  = text.subSequence(start, end).toString();
+            String lineText = text.subSequence(start, end).toString();
             // 앞 공백 개수
             int leadingSpaces = 0;
             while (leadingSpaces < lineText.length()
@@ -71,12 +93,13 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
             int trailingSpaces = 0;
             int len = lineText.length();
             while (trailingSpaces < len - leadingSpaces
-                    && Character.isWhitespace(lineText.charAt(len - 1 - trailingSpaces))) trailingSpaces++;
+                    && Character.isWhitespace(lineText.charAt(len - 1 - trailingSpaces)))
+                trailingSpaces++;
 
-            float leadOffset  = leadingSpaces  > 0 ? p.measureText(lineText, 0, leadingSpaces)  : 0;
+            float leadOffset = leadingSpaces > 0 ? p.measureText(lineText, 0, leadingSpaces) : 0;
             float trailOffset = trailingSpaces > 0 ? p.measureText(lineText, len - trailingSpaces, len) : 0;
 
-            float drawLeft  = left  + leadOffset;
+            float drawLeft = left + leadOffset;
             float drawRight = right - trailOffset;
 
             if (drawLeft >= drawRight) return; // 공백만 있는 줄이면 skip
@@ -99,6 +122,18 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
         this.listener = listener;
     }
 
+    private int getHighlightBgColor() {
+        String bg = userSetting != null ? userSetting.backgroundColor : "#F5F5F5";
+        Integer c = HIGHLIGHT_BG_MAP.get(bg);
+        return c != null ? c : HIGHLIGHT_BG_DEFAULT;
+    }
+
+    private int getHighlightFgColor() {
+        String bg = userSetting != null ? userSetting.backgroundColor : "#F5F5F5";
+        Integer c = HIGHLIGHT_FG_MAP.get(bg);
+        return c != null ? c : HIGHLIGHT_FG_DEFAULT;
+    }
+
     @NonNull
     @Override
     public PageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -117,11 +152,16 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
 
         Typeface baseFace = Typeface.DEFAULT;
         try {
-            if ("RIDIBATANG".equals(userSetting.fontFamily)) baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.ridibatang);
-            else if ("KOPUB_BATANG".equals(userSetting.fontFamily)) baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.kopub_batang);
-            else if ("NANUM_BARUN".equals(userSetting.fontFamily)) baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.nanum_barun_gothic);
-            else if ("NANUM_ROUND".equals(userSetting.fontFamily)) baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.nanum_square_round);
-            else if ("MARU".equals(userSetting.fontFamily)) baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.maruburi);
+            if ("RIDIBATANG".equals(userSetting.fontFamily))
+                baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.ridibatang);
+            else if ("KOPUB_BATANG".equals(userSetting.fontFamily))
+                baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.kopub_batang);
+            else if ("NANUM_BARUN".equals(userSetting.fontFamily))
+                baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.nanum_barun_gothic);
+            else if ("NANUM_ROUND".equals(userSetting.fontFamily))
+                baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.nanum_square_round);
+            else if ("MARU".equals(userSetting.fontFamily))
+                baseFace = ResourcesCompat.getFont(holder.itemView.getContext(), R.font.maruburi);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -139,13 +179,19 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
         if (position == highlightPage && highlightStart >= 0 && highlightEnd > highlightStart && highlightEnd <= text.length()) {
             SpannableString spannable = new SpannableString(text);
             spannable.setSpan(
-                    new ThinHighlightSpan(HIGHLIGHT_COLOR, userSetting.fontSize,
+                    new ThinHighlightSpan(getHighlightBgColor(), userSetting.fontSize,
                             holder.itemView.getContext()),
                     highlightStart,
                     highlightEnd,
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
             );
 
+            spannable.setSpan(
+                    new ForegroundColorSpan(getHighlightFgColor()),
+                    highlightStart,
+                    highlightEnd,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            );
             holder.tvContent.setText(spannable);
         } else {
             holder.tvContent.setText(text);
@@ -164,7 +210,7 @@ public class PageAdapter extends RecyclerView.Adapter<PageAdapter.PageViewHolder
         highlightStart = start;
         highlightEnd = end;
 
-        if (prevPage >=0 && prevPage != page) notifyItemChanged(prevPage);
+        if (prevPage >= 0 && prevPage != page) notifyItemChanged(prevPage);
         if (page >= 0) notifyItemChanged(page);
     }
 
