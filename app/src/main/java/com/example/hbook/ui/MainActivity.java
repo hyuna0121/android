@@ -4,7 +4,9 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -62,20 +64,20 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
 
-        rvLibrary        = findViewById(R.id.rv_library);
-        etSearch         = findViewById(R.id.et_search);
-        ivMore           = findViewById(R.id.iv_more);
+        rvLibrary = findViewById(R.id.rv_library);
+        etSearch = findViewById(R.id.et_search);
+        ivMore = findViewById(R.id.iv_more);
         layoutDeleteMode = findViewById(R.id.layout_delete_mode);
-        layoutSelectAll  = findViewById(R.id.layout_select_all);
+        layoutSelectAll = findViewById(R.id.layout_select_all);
         dividerSelectAll = findViewById(R.id.divider_select_all);
-        cbSelectAll      = findViewById(R.id.cb_select_all);
-        ivCheckAllIcon   = findViewById(R.id.iv_check_all_icon);
-        tvDeleteCount    = findViewById(R.id.tv_delete_count);
-        fabAdd           = findViewById(R.id.fab_add);
+        cbSelectAll = findViewById(R.id.cb_select_all);
+        ivCheckAllIcon = findViewById(R.id.iv_check_all_icon);
+        tvDeleteCount = findViewById(R.id.tv_delete_count);
+        fabAdd = findViewById(R.id.fab_add);
 
-        TextView tvCancelDelete  = findViewById(R.id.tv_cancel_delete);
+        TextView tvCancelDelete = findViewById(R.id.tv_cancel_delete);
         TextView tvConfirmDelete = findViewById(R.id.tv_confirm_delete);
-        ImageView ivProfile      = findViewById(R.id.iv_profile);
+        ImageView ivProfile = findViewById(R.id.iv_profile);
 
         rvLibrary.setLayoutManager(new GridLayoutManager(this, 3));
 
@@ -97,6 +99,27 @@ public class MainActivity extends AppCompatActivity {
         layoutSelectAll.setOnClickListener(selectAllClick);
 
         refreshBookList(currentSortType);
+
+
+        etSearch.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String query = s.toString().trim();
+                if (query.isEmpty()) {
+                    refreshBookList(currentSortType);
+                } else {
+                    searchBooks(query);
+                }
+            }
+        });
     }
 
     @Override
@@ -124,9 +147,9 @@ public class MainActivity extends AppCompatActivity {
         sheet.setContentView(view);
 
         ImageView ivCheckLatest = view.findViewById(R.id.iv_check_latest);
-        ImageView ivCheckName   = view.findViewById(R.id.iv_check_name);
+        ImageView ivCheckName = view.findViewById(R.id.iv_check_name);
         ivCheckLatest.setVisibility(currentSortType.equals("LATEST") ? View.VISIBLE : View.GONE);
-        ivCheckName.setVisibility(currentSortType.equals("NAME")     ? View.VISIBLE : View.GONE);
+        ivCheckName.setVisibility(currentSortType.equals("NAME") ? View.VISIBLE : View.GONE);
 
         view.findViewById(R.id.menu_edit).setOnClickListener(v -> {
             sheet.dismiss();
@@ -229,6 +252,16 @@ public class MainActivity extends AppCompatActivity {
         builder.show();
     }
 
+    // ── 검색 ──────────────────────────────────────────────────────────────
+    private void searchBooks(String query) {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.execute(() -> {
+            List<Book> books = AppDatabase.getInstance(getApplicationContext())
+                    .libraryDao().searchBooks(currentUserId, query);
+            runOnUiThread(() -> updateBookList(books));
+        });
+    }
+
     // ── 책 목록 새로고침 ─────────────────────────────────────────────────
     private void refreshBookList(String sortType) {
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -262,6 +295,29 @@ public class MainActivity extends AppCompatActivity {
                 rvLibrary.setAdapter(adapter);
             });
         });
+    }
+
+    // ── 어댑터 갱신 (검색/새로고침 공통) ─────────────────────────────────
+    private void updateBookList(List<Book> books) {
+        adapter = new BookAdapter(books, count -> {
+            if (tvDeleteCount != null)
+                tvDeleteCount.setText(count + "개 선택");
+            if (ivCheckAllIcon != null && adapter != null) {
+                ivCheckAllIcon.setImageResource(
+                        adapter.isAllSelected()
+                                ? R.drawable.ic_check_on
+                                : R.drawable.ic_check_off);
+            }
+        });
+        adapter.setFavoriteChangeListener(book -> {
+            ExecutorService dbExec = Executors.newSingleThreadExecutor();
+            dbExec.execute(() -> {
+                AppDatabase.getInstance(getApplicationContext())
+                        .libraryDao().updateBook(book);
+                runOnUiThread(() -> refreshBookList(currentSortType));
+            });
+        });
+        rvLibrary.setAdapter(adapter);
     }
 
     // ── 책 이름 수정 다이얼로그 ──────────────────────────────────────────

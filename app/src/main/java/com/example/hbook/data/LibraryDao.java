@@ -52,4 +52,7 @@ public interface LibraryDao {
 
     @Query("SELECT * FROM reader_logs WHERE book_id = :bookId")
     List<ReaderLog> getLogsForBook(int bookId);
+
+    @Query("SELECT * FROM books WHERE user_id = :userId AND title LIKE '%' || :query || '%' ORDER BY created_at DESC")
+    List<Book> searchBooks(int userId, String query);
 }
